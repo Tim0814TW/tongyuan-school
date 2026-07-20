@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>學印 StudySeal ｜ 主控台</title>
+<link rel="icon" href="assets/logo-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  body{ font-family:'Noto Sans TC',sans-serif; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+
+  header.top{ position:sticky; top:0; z-index:40; background:rgba(250,249,247,0.94); backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line); padding:12px 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand img{ width:36px; height:36px; }
+  .brand .word b{ font-size:15px; font-weight:900; letter-spacing:.5px; }
+  .brand .word span{ display:block; font-size:10px; color:var(--ink-soft); letter-spacing:1.5px; }
+
+  .user-box{ display:flex; align-items:center; gap:12px; }
+  .role-pill{ font-size:11px; font-weight:700; padding:5px 12px; border-radius:999px; }
+
+  .shell{ max-width:1180px; margin:0 auto; padding:26px 24px 80px; }
+  .page-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+  .page-head h1{ font-size:24px; font-weight:900; }
+  .page-head .sub{ color:var(--ink-soft); font-size:13px; margin-top:5px; }
+
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:22px; flex-wrap:wrap; }
+  .tabs button{ border:none; background:transparent; padding:10px 4px; margin-right:20px; font-size:14px; font-weight:700;
+    color:var(--ink-soft); border-bottom:3px solid transparent; position:relative; top:1px; }
+  .tabs button.active{ color:var(--ink); border-bottom-color:var(--accent); }
+
+  .grid-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:26px; }
+  .stat-card{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow); }
+  .stat-card .label{ font-size:11.5px; color:var(--ink-soft); font-weight:700; }
+  .stat-card .value{ font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:600; margin-top:6px; }
+
+  .course-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }
+  .course-card{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  .course-thumb{ height:110px; display:flex; align-items:center; justify-content:center; color:#fff; position:relative; }
+  .course-thumb .play{ width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center; }
+  .course-thumb .tag{ position:absolute; top:9px; left:9px; background:rgba(84,84,84,.5); color:#fff; font-size:10.5px; padding:3px 9px; border-radius:999px; font-weight:700; }
+  .course-card .body{ padding:14px 15px 16px; display:flex; flex-direction:column; gap:9px; flex:1; }
+  .course-card h3{ font-size:14.5px; font-weight:700; line-height:1.4; }
+  .course-card .meta{ font-size:11.5px; color:var(--ink-soft); display:flex; justify-content:space-between; }
+  .progress{ width:100%; height:6px; background:#EFEADC; border-radius:999px; overflow:hidden; }
+  .progress > span{ display:block; height:100%; background:#2F6E5B; border-radius:999px; }
+
+  .qbuilder-item{ border:1px dashed var(--line); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:12px; background:#FCFBFA; }
+  .qbuilder-item .qtype{ font-size:11px; font-weight:700; color:var(--pink); margin-bottom:8px; }
+  .opt-row{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .opt-row input[type=text]{ flex:1; padding:7px 10px; font-size:13px; }
+
+  .video-mock{ aspect-ratio:16/9; border-radius:var(--radius); background:linear-gradient(135deg,#846CA8,#48C0F0); display:flex; align-items:center; justify-content:center; color:#fff; position:relative; overflow:hidden; }
+  .video-mock .play-big{ width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.16); border:2px solid rgba(255,255,255,.7); display:flex; align-items:center; justify-content:center; }
+  .video-mock .cap{ position:absolute; bottom:12px; left:14px; font-size:12px; background:rgba(0,0,0,0.32); padding:4px 10px; border-radius:999px; }
+
+  .quiz-q{ border-top:1px solid var(--line); padding:16px 0; }
+  .quiz-q:first-child{ border-top:none; padding-top:2px; }
+  .quiz-q .qn{ font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:5px; }
+  .quiz-q .qtext{ font-size:14px; font-weight:700; margin-bottom:10px; }
+  .quiz-photo{ width:100%; max-width:300px; border-radius:var(--radius-sm); margin-bottom:10px; border:1px solid var(--line); }
+  .quiz-opt{ display:flex; align-items:center; gap:9px; padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); margin-bottom:7px; font-size:13px; background:#FCFBFA; }
+  .quiz-opt.correct{ border-color:#2F6E5B; background:#E1EEE7; }
+  .quiz-opt.wrong{ border-color:var(--pink); background:var(--pink-soft); }
+
+  .report-card{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); }
+  .stamp{ display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:50%; border:2.5px solid currentColor; font-weight:900; font-size:12px; transform:rotate(-8deg); flex-shrink:0; }
+  .stamp.jade{ color:#2F6E5B; } .stamp.pink{ color:var(--pink); }
+
+  #studentGridWrap{ display:grid; grid-template-columns:1.3fr 1fr; gap:20px; }
+  @media (max-width:900px){ #studentGridWrap{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <img src="assets/logo-mark.png" alt="">
+    <div class="word"><b>學印 StudySeal</b><span>最酷的網路學院</span></div>
+  </div>
+  <div class="user-box" id="userBox"></div>
+</header>
+
+<main class="shell" id="app">
+  <div class="spinner"></div>
+</main>
+
+<div id="modalRoot"></div>
+
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script>
+if (!requireLogin()) { throw new Error('redirect'); }
+const CURRENT = getUser();
+
+const ROLE_META = {
+  super:       { name:'最高權限', color:'#48C0F0', soft:'#E4F6FD' },
+  institution: { name:'園所',    color:'#846CA8', soft:'#EEE9F5' },
+  teacher:     { name:'老師',    color:'#E44878', soft:'#FCE7ED' },
+  student:     { name:'學生',    color:'#F0C03C', soft:'#FBF1D8' },
+};
+
+let state = { tab:{}, courseId:null, quizAnswers:{}, quizResult:null };
+
+function renderUserBox(){
+  const meta = ROLE_META[CURRENT.role];
+  document.getElementById('userBox').innerHTML = `
+    <span class="role-pill" style="background:${meta.soft};color:${meta.color};">${meta.name}</span>
+    <span class="avatar">${CURRENT.name ? CURRENT.name[0] : '?'}</span>
+    <span style="font-size:13px;font-weight:700;">${CURRENT.name || CURRENT.email}</span>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">登出</button>
+  `;
+}
+
+function tabsHTML(role, tabs, activeKey){
+  return `<div class="tabs">${tabs.map(t=>`<button data-tab="${t.key}" class="${activeKey===t.key?'active':''}" onclick="setTab('${role}','${t.key}')">${t.label}</button>`).join('')}</div>`;
+}
+function setTab(role, key){ state.tab[role]=key; render(); }
+
+async function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="spinner"></div>';
+  try{
+    if (CURRENT.role === 'super') await renderSuper(app);
+    else if (CURRENT.role === 'institution') await renderInstitution(app);
+    else if (CURRENT.role === 'teacher') await renderTeacher(app);
+    else await renderStudent(app);
+  }catch(err){
+    app.innerHTML = `<div class="empty">載入失敗：${err.message}</div>`;
+  }
+}
+
+/* ---------------- Super Admin ---------------- */
+async function renderSuper(app){
+  const tab = state.tab.super || 'overview';
+  const { institutions } = await api('/api/institutions');
+
+  const totalTeachers = institutions.reduce((s,i)=>s+i.teacher_count,0);
+  const totalStudents = institutions.reduce((s,i)=>s+i.student_count,0);
+
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>系統總覽</h1><div class="sub">管理所有園所帳號與平台權限設定</div></div>
+      <button class="btn btn-accent" onclick="openInstModal()">＋ 新增園所</button>
+    </div>
+    ${tabsHTML('super',[{key:'overview',label:'總覽'},{key:'insts',label:'園所管理'}], tab)}
+    ${tab==='overview' ? `
+      <div class="grid-stats">
+        <div class="stat-card"><div class="label">總園所數</div><div class="value">${institutions.length}</div></div>
+        <div class="stat-card"><div class="label">總老師數</div><div class="value">${totalTeachers}</div></div>
+        <div class="stat-card"><div class="label">總學生數</div><div class="value">${totalStudents}</div></div>
+      </div>` : ''}
+    <div class="card"><div class="card-head"><h2>園所狀態一覽</h2></div><div class="card-body">${instTable(institutions)}</div></div>
+  `;
+}
+function instTable(rows){
+  if(!rows.length) return '<div class="empty">尚未有任何園所，點右上角「新增園所」開始建立。</div>';
+  return `<table><thead><tr><th>園所名稱</th><th>代碼</th><th>方案</th><th>老師數</th><th>學生數</th><th>狀態</th><th></th></tr></thead><tbody>
+  ${rows.map(i=>`<tr>
+    <td><b>${esc(i.name)}</b></td>
+    <td class="mono">${i.code}</td>
+    <td>${esc(i.plan)}</td>
+    <td class="mono">${i.teacher_count}</td>
+    <td class="mono">${i.student_count}</td>
+    <td>${i.status==='active'?'<span class="badge badge-jade">啟用中</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick="toggleInst(${i.id}, '${i.status==='active'?'disabled':'active'}')">${i.status==='active'?'停用':'啟用'}</button></td>
+  </tr>`).join('')}
+  </tbody></table>`;
+}
+async function toggleInst(id, status){
+  await api(`/api/institutions/${id}`, { method:'PATCH', body:{ status } });
+  toast('狀態已更新'); render();
+}
+function openInstModal(){
+  openModal('新增園所', `
+    <div class="field"><label>園所名稱</label><input id="f_name" placeholder="例如 博智文理補習班"></div>
+    <div class="field"><label>方案</label>
+      <select id="f_plan"><option>標準方案</option><option>旗艦方案</option></select>
+    </div>
+    <div class="field"><label>管理員姓名</label><input id="f_ownerName" placeholder="園所管理員姓名"></div>
+    <div class="field"><label>管理員 Email</label><input id="f_ownerEmail" placeholder="owner@example.com"></div>
+    <div class="field"><label>管理員密碼</label><input id="f_ownerPassword" type="password" placeholder="設定初始密碼"></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstModal()">建立園所</button>
+  `);
+}
+async function submitInstModal(){
+  const body = {
+    name: val('f_name'), plan: val('f_plan'),
+    ownerName: val('f_ownerName'), ownerEmail: val('f_ownerEmail'), ownerPassword: val('f_ownerPassword'),
+  };
+  try{
+    await api('/api/institutions', { method:'POST', body });
+    toast('園所建立成功'); closeModal(); render();
+  }catch(err){ toast(err.message, 'err'); }
+}
+
+/* ---------------- Institution ---------------- */
+async function renderInstitution(app){
+  const tab = state.tab.institution || 'overview';
+  const { users: teachers } = await api('/api/users?role=teacher');
+
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>園所管理主控台</h1><div class="sub">管理老師帳號與課程權限</div></div>
+      <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
+    </div>
+    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'}], tab)}
+    ${tab==='overview' ? `
+      <div class="grid-stats">
+        <div class="stat-card"><div class="label">老師數</div><div class="value">${teachers.length}</div></div>
+        <div class="stat-card"><div class="label">課程總數</div><div class="value">${teachers.reduce((s,t)=>s+t.course_count,0)}</div></div>
+      </div>` : ''}
+    <div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>
+  `;
+}
+function teacherTable(rows){
+  if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
+  return `<table><thead><tr><th>老師</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
+  ${rows.map(t=>`<tr>
+    <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
+    <td>${esc(t.subject||'—')}</td>
+    <td>${esc(t.class_name||'—')}</td>
+    <td class="mono">${t.course_count}</td>
+    <td>${t.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
+  </tr>`).join('')}
+  </tbody></table>`;
+}
+async function toggleUser(id, status){
+  await api(`/api/users/${id}`, { method:'PATCH', body:{ status } });
+  toast('狀態已更新'); render();
+}
+function openTeacherModal(){
+  openModal('新增老師', `
+    <div class="field"><label>姓名</label><input id="f_name" placeholder="老師姓名"></div>
+    <div class="field"><label>Email（登入帳號）</label><input id="f_email" placeholder="teacher@example.com"></div>
+    <div class="field"><label>密碼</label><input id="f_password" type="password" placeholder="設定初始密碼"></div>
+    <div class="field"><label>負責科目</label><input id="f_subject" placeholder="例如 國中數學"></div>
+    <div class="field"><label>負責班級</label><input id="f_class" placeholder="例如 數學A班"></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">建立老師帳號</button>
+  `);
+}
+async function submitTeacherModal(){
+  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'), subject: val('f_subject'), class_name: val('f_class') };
+  try{ await api('/api/users', { method:'POST', body }); toast('老師帳號建立成功'); closeModal(); render(); }
+  catch(err){ toast(err.message, 'err'); }
+}
+
+/* ---------------- Teacher ---------------- */
+async function renderTeacher(app){
+  if (state.view === 'courseEditor') return renderCourseEditor(app, state.courseId);
+  const tab = state.tab.teacher || 'courses';
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>老師教學主控台</h1><div class="sub">${esc(CURRENT.name)} · ${esc(CURRENT.subject||'')} · ${esc(CURRENT.class_name||'')}</div></div>
+      ${tab==='courses' ? `<button class="btn btn-accent" onclick="openCourseEditor(null)">＋ 新增課程</button>`
+        : tab==='students' ? `<button class="btn btn-accent" onclick="openStudentModal()">＋ 新增學生</button>` : ''}
+    </div>
+    ${tabsHTML('teacher',[{key:'courses',label:'課程管理'},{key:'students',label:'學生管理'},{key:'grades',label:'學生成績'}], tab)}
+    <div id="teacherTabBody"><div class="spinner"></div></div>
+  `;
+  const body = document.getElementById('teacherTabBody');
+  if (tab==='courses') body.innerHTML = await teacherCoursesHTML();
+  else if (tab==='students') body.innerHTML = await teacherStudentsHTML();
+  else {
+    const { html, firstCourseId } = await teacherGradesHTML();
+    body.innerHTML = html;
+    if (firstCourseId) loadGrades(firstCourseId);
+  }
+}
+async function teacherCoursesHTML(){
+  const { courses } = await api('/api/courses');
+  if(!courses.length) return '<div class="empty">還沒有課程，點右上角「新增課程」開始建立第一堂課。</div>';
+  return `<div class="course-grid">${courses.map(c=>`
+    <div class="course-card">
+      <div class="course-thumb" style="background:linear-gradient(135deg,#846CA8,#48C0F0);">
+        <span class="tag">${esc(c.subject||'課程')}</span>
+        <div class="play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#545454"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>
+      <div class="body">
+        <h3>${esc(c.title)}</h3>
+        <div class="meta"><span>${c.question_count} 題測驗</span></div>
+        <button class="btn btn-ghost btn-sm" style="align-self:flex-start;" onclick="openCourseEditor(${c.id})">編輯課程</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+async function teacherStudentsHTML(){
+  const { users: students } = await api('/api/users?role=student');
+  const { courses } = await api('/api/courses');
+  window.__myCourses = courses;
+  if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
+  return `<table><thead><tr><th>學生</th><th>班級</th><th>狀態</th><th></th></tr></thead><tbody>
+  ${students.map(s=>`<tr>
+    <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</td>
+    <td>${esc(s.class_name||'—')}</td>
+    <td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td>
+  </tr>`).join('')}
+  </tbody></table>`;
+}
+function openStudentModal(){
+  openModal('新增學生', `
+    <div class="field"><label>姓名</label><input id="f_name" placeholder="學生姓名"></div>
+    <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" placeholder="A1042503 或 email"></div>
+    <div class="field"><label>密碼</label><input id="f_password" type="password" placeholder="設定初始密碼"></div>
+    <div class="field"><label>班級</label><input id="f_class" placeholder="例如 數學A班"></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitStudentModal()">建立學生帳號</button>
+  `);
+}
+async function submitStudentModal(){
+  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'), class_name: val('f_class') };
+  try{ await api('/api/users', { method:'POST', body }); toast('學生帳號建立成功'); closeModal(); render(); }
+  catch(err){ toast(err.message, 'err'); }
+}
+async function openAccessModal(studentId, studentName){
+  const courses = window.__myCourses || (await api('/api/courses')).courses;
+  openModal(`${studentName} 的課程權限`, `
+    <div id="accessList">${courses.map(c=>`
+      <label style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;">
+        <input type="checkbox" data-course="${c.id}" class="access-check"> ${esc(c.title)}
+      </label>`).join('')}</div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-top:16px;" onclick="saveAccess(${studentId})">儲存權限</button>
+  `);
+  for(const c of courses){
+    const { student_ids } = await api(`/api/courses/${c.id}/access`);
+    const cb = document.querySelector(`.access-check[data-course="${c.id}"]`);
+    if(cb) cb.checked = student_ids.includes(studentId);
+  }
+}
+async function saveAccess(studentId){
+  const checks = document.querySelectorAll('.access-check');
+  for(const cb of checks){
+    const courseId = cb.dataset.course;
+    try{
+      if(cb.checked) await api(`/api/courses/${courseId}/access`, { method:'POST', body:{ student_id: studentId } });
+      else await api(`/api/courses/${courseId}/access/${studentId}`, { method:'DELETE' });
+    }catch(e){ /* ignore per-item errors */ }
+  }
+  toast('課程權限已更新'); closeModal();
+}
+async function teacherGradesHTML(){
+  const { courses } = await api('/api/courses');
+  if(!courses.length) return { html:'<div class="empty">還沒有課程可查看成績。</div>', firstCourseId:null };
+  const first = courses[0];
+  const html = `
+    <div class="field" style="max-width:280px;">
+      <label>選擇課程</label>
+      <select id="gradeCourseSelect" onchange="loadGrades(this.value)">
+        ${courses.map(c=>`<option value="${c.id}">${esc(c.title)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="gradesTableWrap"><div class="spinner"></div></div>
+  `;
+  return { html, firstCourseId: first.id };
+}
+async function loadGrades(courseId){
+  const wrap = document.getElementById('gradesTableWrap');
+  wrap.innerHTML = '<div class="spinner"></div>';
+  const { attempts } = await api(`/api/courses/${courseId}/attempts`);
+  if(!attempts.length){ wrap.innerHTML = '<div class="empty">還沒有學生完成這堂課的測驗。</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>學生</th><th>班級</th><th>分數</th><th>提交時間</th><th></th></tr></thead><tbody>
+  ${attempts.map(a=>`<tr>
+    <td>${esc(a.student_name)}</td><td>${esc(a.class_name||'—')}</td>
+    <td class="mono">${a.score} / ${a.total}</td>
+    <td class="mono">${a.submitted_at}</td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openAttemptModal(${a.id})">查看／修改</button></td>
+  </tr>`).join('')}
+  </tbody></table>`;
+}
+async function openAttemptModal(attemptId){
+  const { attempt, answers } = await api(`/api/courses/attempts/${attemptId}`);
+  openModal('作答詳情與批閱', `
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">目前分數：<b class="mono" id="attemptScoreLabel">${attempt.score} / ${attempt.total}</b></div>
+    ${answers.map(a=>`
+      <div class="qbuilder-item">
+        <div style="font-size:13.5px;font-weight:700;margin-bottom:8px;">${esc(a.text)}</div>
+        ${a.options.map((o,i)=>`
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;">
+            <input type="radio" name="grade-${a.question_id}" value="${i}" ${a.selected_index===i?'checked':''}
+              onchange="regrade(${attemptId}, ${a.question_id}, ${i}, ${a.correct_index})">
+            ${esc(o)} ${i===a.correct_index?'<span class="badge badge-jade" style="margin-left:6px;">正解</span>':''}
+          </label>`).join('')}
+      </div>`).join('')}
+  `);
+}
+async function regrade(attemptId, questionId, selectedIndex, correctIndex){
+  const isCorrect = selectedIndex === correctIndex ? 1 : 0;
+  const { attempt } = await api(`/api/courses/attempts/${attemptId}/answers/${questionId}`, { method:'PATCH', body:{ selected_index: selectedIndex, is_correct: isCorrect } });
+  document.getElementById('attemptScoreLabel').textContent = `${attempt.score} / ${attempt.total}`;
+  toast('批閱結果已更新');
+  loadGrades(document.getElementById('gradeCourseSelect') ? document.getElementById('gradeCourseSelect').value : attempt.course_id);
+}
+
+function openCourseEditor(courseId){ state.view='courseEditor'; state.courseId=courseId; render(); }
+function backToCourses(){ state.view=null; state.courseId=null; render(); }
+
+async function renderCourseEditor(app, courseId){
+  let course = { title:'', subject:'', youtube_url:'', description:'' };
+  let questions = [];
+  if (courseId){
+    const data = await api(`/api/courses/${courseId}`);
+    course = data.course; questions = data.questions;
+  }
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>${courseId?'編輯課程':'新增課程'}</h1><div class="sub">設定 YouTube 連結、課程說明與測驗題目</div></div>
+      <button class="btn btn-ghost" onclick="backToCourses()">← 返回課程列表</button>
+    </div>
+    <div class="card"><div class="card-body">
+      <div class="field"><label>課程標題</label><input id="c_title" value="${escAttr(course.title)}"></div>
+      <div class="field"><label>科目</label><input id="c_subject" value="${escAttr(course.subject||'')}"></div>
+      <div class="field"><label>YouTube 影片連結</label><input id="c_youtube" value="${escAttr(course.youtube_url||'')}" placeholder="https://www.youtube.com/watch?v=..."></div>
+      <div class="field"><label>課程說明</label><textarea id="c_desc">${esc(course.description||'')}</textarea></div>
+      <button class="btn btn-primary" onclick="saveCourseInfo(${courseId||'null'})">${courseId?'儲存變更':'建立課程'}</button>
+    </div></div>
+
+    ${courseId ? `
+    <div class="card" style="margin-top:18px;">
+      <div class="card-head"><h2>測驗題目</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="openQuestionModal('mc', ${courseId})">＋ 選擇題</button>
+          <button class="btn btn-ghost btn-sm" onclick="openQuestionModal('photo', ${courseId})">＋ 照片題</button>
+        </div>
+      </div>
+      <div class="card-body" id="qList">
+        ${questions.length ? questions.map((q,i)=>qItemHTML(q,i)).join('') : '<div class="empty">尚未新增題目</div>'}
+      </div>
+    </div>` : `<div class="empty" style="margin-top:16px;">請先儲存課程基本資料，才能新增題目。</div>`}
+  `;
+}
+function qItemHTML(q, idx){
+  return `<div class="qbuilder-item">
+    <div class="qtype">${q.type==='photo'?'照片題':'選擇題'} · 第 ${idx+1} 題
+      <button class="btn btn-ghost btn-sm" style="float:right;padding:3px 10px;" onclick="deleteQuestion(${q.id})">刪除</button>
+    </div>
+    <div style="font-size:13.5px;font-weight:700;margin:6px 0 8px;">${esc(q.text)}</div>
+    ${q.options.map((o,i)=>`<div style="font-size:12.5px;color:${i===q.correct_index?'#2F6E5B':'var(--ink-soft)'};padding:3px 0;">${i===q.correct_index?'✓ ':'　'}${esc(o)}</div>`).join('')}
+  </div>`;
+}
+async function saveCourseInfo(courseId){
+  const body = { title: val('c_title'), subject: val('c_subject'), youtube_url: val('c_youtube'), description: val('c_desc') };
+  try{
+    if(courseId){ await api(`/api/courses/${courseId}`, { method:'PATCH', body }); toast('課程已更新'); render(); }
+    else{ const { course } = await api('/api/courses', { method:'POST', body }); toast('課程已建立，接著新增題目吧'); openCourseEditor(course.id); }
+  }catch(err){ toast(err.message,'err'); }
+}
+async function deleteQuestion(qId){
+  await api(`/api/courses/questions/${qId}`, { method:'DELETE' });
+  toast('題目已刪除'); render();
+}
+function openQuestionModal(type, courseId){
+  openModal(type==='photo'?'新增照片題':'新增選擇題', `
+    <div class="field"><label>題目</label><textarea id="q_text" placeholder="輸入題目內容"></textarea></div>
+    ${type==='photo' ? `<div class="field"><label>圖片網址（選填）</label><input id="q_image" placeholder="https://..."></div>` : ''}
+    <div class="field"><label>選項與正確答案</label>
+      ${[0,1,2,3].map(i=>`
+        <div class="opt-row">
+          <input type="radio" name="q_correct" value="${i}" ${i===0?'checked':''}>
+          <input type="text" id="q_opt${i}" placeholder="選項 ${String.fromCharCode(65+i)}">
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitQuestion('${type}', ${courseId})">新增題目</button>
+  `);
+}
+async function submitQuestion(type, courseId){
+  const options = [0,1,2,3].map(i=>val('q_opt'+i)).filter(o=>o);
+  const correct_index = parseInt(document.querySelector('input[name=q_correct]:checked').value, 10);
+  const body = { type, text: val('q_text'), image_url: type==='photo'?val('q_image'):null, options, correct_index };
+  try{ await api(`/api/courses/${courseId}/questions`, { method:'POST', body }); toast('題目已新增'); closeModal(); render(); }
+  catch(err){ toast(err.message,'err'); }
+}
+
+/* ---------------- Student ---------------- */
+async function renderStudent(app){
+  if (state.view === 'courseView') return renderStudentCourse(app, state.courseId);
+  const tab = state.tab.student || 'courses';
+  const { courses } = await api('/api/courses');
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>嗨，${esc(CURRENT.name)} 👋</h1><div class="sub">${esc(CURRENT.class_name||'')} · 持續保持學習節奏！</div></div>
+    </div>
+    ${tabsHTML('student',[{key:'courses',label:'我的課程'},{key:'report',label:'學習成績單'}], tab)}
+    ${tab==='courses' ? studentCoursesHTML(courses) : studentReportHTML(courses)}
+  `;
+}
+function studentCoursesHTML(courses){
+  if(!courses.length) return '<div class="empty">老師還沒有指派課程給你，請聯繫你的老師。</div>';
+  return `<div class="course-grid">${courses.map(c=>{
+    const done = !!c.my_attempt;
+    return `<div class="course-card">
+      <div class="course-thumb" style="background:linear-gradient(135deg,#846CA8,#48C0F0);">
+        <span class="tag">${esc(c.subject||'課程')}</span>
+        <div class="play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#545454"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>
+      <div class="body">
+        <h3>${esc(c.title)}</h3>
+        <div class="meta"><span>${done?`已完成 · ${c.my_attempt.score}/${c.my_attempt.total}`:'尚未作答'}</span></div>
+        <div class="progress"><span style="width:${done?100:0}%"></span></div>
+        <button class="btn btn-accent btn-sm" style="align-self:flex-start;" onclick="openStudentCourse(${c.id})">${done?'重新查看':'繼續上課'}</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function studentReportHTML(courses){
+  const done = courses.filter(c=>c.my_attempt);
+  return `<div class="report-card">
+    <h2 style="font-size:18px;margin-bottom:6px;">學習成績單</h2>
+    <div style="color:var(--ink-soft);font-size:12.5px;margin-bottom:18px;">已完成 ${done.length} / ${courses.length} 堂課程測驗</div>
+    ${done.length ? `<table><thead><tr><th>課程</th><th>分數</th><th>提交時間</th></tr></thead><tbody>
+      ${done.map(c=>`<tr><td>${esc(c.title)}</td><td class="mono">${c.my_attempt.score} / ${c.my_attempt.total}</td><td class="mono">${c.my_attempt.submitted_at}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="empty">還沒有完成任何測驗</div>'}
+  </div>`;
+}
+function openStudentCourse(courseId){ state.view='courseView'; state.courseId=courseId; state.quizAnswers={}; render(); }
+function backToStudentCourses(){ state.view=null; state.courseId=null; render(); }
+
+async function renderStudentCourse(app, courseId){
+  const { course, questions, attempt } = await api(`/api/courses/${courseId}`);
+  app.innerHTML = `
+    <div class="page-head">
+      <div><h1>${esc(course.title)}</h1><div class="sub">${esc(course.subject||'')} · 觀看影片後完成下方測驗</div></div>
+      <button class="btn btn-ghost" onclick="backToStudentCourses()">← 返回我的課程</button>
+    </div>
+    <div id="studentGridWrap">
+      <div>
+        <div class="video-mock">
+          <div class="play-big"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+          <span class="cap">YouTube 課程影片</span>
+        </div>
+        <p style="font-size:13px;color:var(--ink-soft);margin-top:12px;line-height:1.7;">${esc(course.description||'')}</p>
+        ${course.youtube_url ? `<a href="${escAttr(course.youtube_url)}" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--purple);font-weight:700;">在 YouTube 開啟課程影片 →</a>` : ''}
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>隨堂測驗</h2><span class="badge badge-gray">${questions.length} 題</span></div>
+        <div class="card-body" id="quizArea">${quizHTML(questions, attempt, courseId)}</div>
+      </div>
+    </div>
+  `;
+}
+function quizHTML(questions, attempt, courseId){
+  const submitted = !!attempt;
+  const body = questions.map((q,qi)=>`
+    <div class="quiz-q">
+      <div class="qn">第 ${qi+1} 題 · ${q.type==='photo'?'照片題':'選擇題'}</div>
+      <div class="qtext">${esc(q.text)}</div>
+      ${q.type==='photo' ? photoMock() : ''}
+      ${q.options.map((o,oi)=>{
+        let cls='';
+        if(submitted){
+          if(oi===q.correct_index) cls='correct';
+          else if(state.quizAnswers[q.id]===oi) cls='wrong';
+        }
+        return `<label class="quiz-opt ${cls}">
+          <input type="radio" name="q${q.id}" data-qid="${q.id}" ${state.quizAnswers[q.id]===oi?'checked':''}
+            onchange="state.quizAnswers[${q.id}]=${oi}" ${submitted?'disabled':''}>
+          ${esc(o)}
+        </label>`;
+      }).join('')}
+    </div>`).join('');
+  const footer = submitted
+    ? `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;">
+        <div class="stamp jade">完成</div>
+        <div><div style="font-weight:700;font-size:14px;">測驗結果：${attempt.score} / ${attempt.total}</div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">紀錄已同步至老師後台</div></div>
+      </div>`
+    : `<button class="btn btn-accent" style="width:100%;justify-content:center;margin-top:8px;" onclick="submitQuiz(${courseId}, ${JSON.stringify(questions.map(q=>q.id))})">提交答案</button>`;
+  return body + footer;
+}
+function photoMock(){
+  return `<svg class="quiz-photo" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+    <rect width="300" height="150" fill="#EFEADC"/>
+    <circle cx="150" cy="65" r="30" fill="#846CA8" opacity="0.7"/>
+    <text x="150" y="130" text-anchor="middle" font-family="Noto Sans TC" font-size="11" fill="#8B8B8B">示意圖表 / 題目附圖</text>
+  </svg>`;
+}
+async function submitQuiz(courseId, questionIds){
+  const answers = questionIds.map(qid => ({ question_id: qid, selected_index: state.quizAnswers[qid] ?? -1 }));
+  try{
+    await api(`/api/courses/${courseId}/submit`, { method:'POST', body:{ answers } });
+    toast('已提交測驗！');
+    state.view='courseView'; render();
+  }catch(err){ toast(err.message,'err'); }
+}
+
+/* ---------------- shared helpers ---------------- */
+function val(id){ return document.getElementById(id).value.trim(); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return esc(s); }
+
+function openModal(title, bodyHTML){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-head"><h2 style="font-size:16px;font-weight:700;">${title}</h2><button class="modal-close" onclick="closeModal()">✕</button></div>
+        <div class="modal-body">${bodyHTML}</div>
+      </div>
+    </div>`;
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+renderUserBox();
+render();
+</script>
+</body>
+</html>

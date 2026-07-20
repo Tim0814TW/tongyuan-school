@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最酷的網路學院 ｜ 童願文創</title>
+<link rel="icon" href="assets/logo-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Baloo+2:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  body{ display:flex; }
+  .display{ font-family:'Baloo 2','Noto Sans TC',sans-serif; }
+  .layout{ display:flex; width:100%; min-height:100vh; }
+
+  .hero{ flex:1.15; position:relative; overflow:hidden; background:linear-gradient(160deg,#EEF8FD 0%,#F2EFF8 100%);
+    display:flex; flex-direction:column; justify-content:space-between; padding:44px 52px; }
+  .hero-top{ display:flex; align-items:center; gap:12px; }
+  .hero-top img{ width:44px; height:44px; }
+  .hero-top .wordmark{ font-size:15px; font-weight:700; letter-spacing:2px; }
+  .hero-top .wordmark span{ display:block; font-size:10.5px; font-weight:500; letter-spacing:3px; color:var(--ink-soft); margin-top:1px; }
+
+  .hero-mid{ max-width:460px; margin-top:10px; }
+  .eyebrow{ display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,0.7); border:1px solid rgba(84,84,84,0.08); padding:6px 14px 6px 10px; border-radius:999px; font-size:12px; font-weight:700; color:var(--purple); margin-bottom:22px; }
+  .hero-mid h1{ font-size:44px; line-height:1.28; font-weight:900; letter-spacing:1px; }
+  .hero-mid h1 em{ font-style:normal; background:linear-gradient(90deg, var(--pink), var(--purple) 60%, var(--sky)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero-mid p{ margin-top:18px; font-size:14.5px; line-height:1.9; color:var(--ink-soft); max-width:380px; }
+
+  .role-legend{ display:flex; gap:10px; margin-top:32px; flex-wrap:wrap; }
+  .role-legend .chip{ display:flex; align-items:center; gap:7px; background:rgba(255,255,255,0.75); border:1px solid rgba(84,84,84,0.08); padding:8px 13px; border-radius:999px; font-size:12px; font-weight:700; }
+  .role-legend .dot{ width:9px; height:9px; border-radius:50%; }
+
+  .hero-bottom{ display:flex; align-items:center; gap:10px; }
+  .hero-bottom img{ height:24px; opacity:0.8; }
+  .hero-bottom span{ font-size:11px; color:var(--ink-soft); letter-spacing:.5px; }
+
+  .form-panel{ flex:1; min-width:400px; display:flex; align-items:center; justify-content:center; background:var(--paper); padding:40px 32px; }
+  .login-card{ width:100%; max-width:380px; }
+  .login-card .greet{ font-size:12px; font-weight:700; letter-spacing:2px; color:var(--ink-soft); text-transform:uppercase; margin-bottom:8px; }
+  .login-card h2{ font-size:24px; font-weight:900; margin-bottom:26px; }
+
+  .role-tabs{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:24px; }
+  .role-tabs button{ border:1.5px solid var(--line); background:#FCFBFA; border-radius:14px; padding:12px 6px;
+    display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--ink-soft);
+    transition:border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease; }
+  .role-tabs button .ic{ width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .role-tabs button.active{ transform:translateY(-2px); }
+  .role-tabs button[data-role="super"].active{ border-color:var(--sky); background:var(--sky-soft); color:#1F7FA3; }
+  .role-tabs button[data-role="institution"].active{ border-color:var(--purple); background:var(--purple-soft); color:#5C4A80; }
+  .role-tabs button[data-role="teacher"].active{ border-color:var(--pink); background:var(--pink-soft); color:#B23158; }
+  .role-tabs button[data-role="student"].active{ border-color:var(--gold); background:var(--gold-soft); color:#96731C; }
+
+  .role-desc{ font-size:12px; color:var(--ink-soft); background:var(--accent-soft); border-radius:10px; padding:10px 13px; margin-bottom:20px; }
+  .role-desc b{ color:var(--ink); }
+
+  .input-wrap{ position:relative; }
+  .input-wrap svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); opacity:.5; }
+  .field input{ padding-left:40px; }
+
+  .row-between{ display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin:2px 0 20px; }
+  .row-between label{ display:flex; align-items:center; gap:6px; color:var(--ink-soft); }
+
+  .btn-login{ width:100%; border:none; border-radius:12px; padding:14px; font-size:14.5px; font-weight:700; color:#fff;
+    background:var(--accent); box-shadow:0 8px 20px -8px var(--accent); display:flex; align-items:center; justify-content:center; gap:8px; }
+  .btn-login[disabled]{ opacity:.6; }
+
+  .form-error{ background:var(--pink-soft); color:var(--pink); font-size:12.5px; font-weight:700; padding:10px 13px; border-radius:10px; margin-bottom:16px; display:none; }
+
+  @media (max-width: 920px){
+    .layout{ flex-direction:column; }
+    .hero{ padding:32px 26px; min-height:260px; }
+    .hero-mid h1{ font-size:30px; }
+    .role-legend{ display:none; }
+    .form-panel{ min-width:0; padding:32px 22px 56px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <section class="hero">
+    <div class="hero-top">
+      <img src="assets/logo-mark.png" alt="童願文創">
+      <div class="wordmark">童願文創<span>TONG YUAN CREATIVE</span></div>
+    </div>
+
+    <div class="hero-mid">
+      <div class="eyebrow">✦ 多元課程．一站管理．陪伴每個學習願望</div>
+      <h1 class="display">最酷的<em>網路學院</em></h1>
+      <p>從最高權限到每一位學生，四種身份、一個平台。上傳課程、指派測驗、即時掌握學習成果，讓補習班的教學管理像許願一樣簡單。</p>
+      <div class="role-legend">
+        <div class="chip"><span class="dot" style="background:#48C0F0;"></span>最高權限</div>
+        <div class="chip"><span class="dot" style="background:#846CA8;"></span>園所</div>
+        <div class="chip"><span class="dot" style="background:#E44878;"></span>老師</div>
+        <div class="chip"><span class="dot" style="background:#F0C03C;"></span>學生</div>
+      </div>
+    </div>
+
+    <div class="hero-bottom">
+      <span>Powered by</span>
+      <img src="assets/logo-full.png" alt="童願文創 logo">
+    </div>
+  </section>
+
+  <section class="form-panel">
+    <div class="login-card">
+      <div class="greet">歡迎回來</div>
+      <h2>登入你的帳號</h2>
+
+      <div class="role-tabs" id="roleTabs">
+        <button data-role="super" class="active"><span class="ic" style="background:#48C0F0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M3 8l4 3 5-7 5 7 4-3-2 11H5L3 8z"/></svg></span>最高權限</button>
+        <button data-role="institution"><span class="ic" style="background:#846CA8;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg></span>園所</button>
+        <button data-role="teacher"><span class="ic" style="background:#E44878;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg></span>老師</button>
+        <button data-role="student"><span class="ic" style="background:#F0C03C;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg></span>學生</button>
+      </div>
+
+      <div class="role-desc" id="roleDesc"></div>
+      <div class="form-error" id="formError"></div>
+
+      <form id="loginForm">
+        <div class="field" id="fieldOrgCode" style="display:none;">
+          <label>園所代碼</label>
+          <div class="input-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#545454" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg>
+            <input type="text" id="orgCode" placeholder="例如 BOZI2024">
+          </div>
+        </div>
+        <div class="field">
+          <label id="accountLabel">帳號</label>
+          <div class="input-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#545454" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+            <input type="text" id="account" placeholder="請輸入帳號或 Email" autocomplete="username">
+          </div>
+        </div>
+        <div class="field">
+          <label>密碼</label>
+          <div class="input-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#545454" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <input type="password" id="password" placeholder="請輸入密碼" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="row-between">
+          <label><input type="checkbox" checked style="accent-color:#846CA8;"> 記住我</label>
+        </div>
+        <button type="submit" class="btn-login" id="loginBtn">
+          登入 <span id="btnRoleLabel">最高權限主控台</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
+    </div>
+  </section>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script>
+const ROLES = {
+  super:       { name:'最高權限', desc:'管理所有<b>園所帳號</b>與系統層級權限設定。', accent:'#48C0F0', accentSoft:'#E4F6FD', label:'系統帳號', showOrg:false, btn:'最高權限主控台' },
+  institution: { name:'園所',    desc:'建立<b>老師帳號</b>，管理園所課程與整體教學成效。', accent:'#846CA8', accentSoft:'#EEE9F5', label:'園所管理員帳號', showOrg:true, btn:'園所主控台' },
+  teacher:     { name:'老師',    desc:'建立<b>學生帳號</b>，編輯課程、題目與批閱成績。', accent:'#E44878', accentSoft:'#FCE7ED', label:'老師帳號', showOrg:true, btn:'老師主控台' },
+  student:     { name:'學生',    desc:'觀看課程影片、完成測驗，累積你的學習成績單。', accent:'#F0C03C', accentSoft:'#FBF1D8', label:'學生帳號', showOrg:true, btn:'我的學習主頁' },
+};
+let currentRole = 'super';
+
+function setRole(key){
+  currentRole = key;
+  const r = ROLES[key];
+  document.querySelectorAll('.role-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.role===key));
+  document.getElementById('roleDesc').innerHTML = r.desc;
+  document.getElementById('roleDesc').style.background = r.accentSoft;
+  document.getElementById('accountLabel').textContent = r.label;
+  document.getElementById('btnRoleLabel').textContent = r.btn;
+  document.getElementById('fieldOrgCode').style.display = r.showOrg ? 'block' : 'none';
+  document.documentElement.style.setProperty('--accent', r.accent);
+  document.documentElement.style.setProperty('--accent-soft', r.accentSoft);
+  document.getElementById('formError').style.display = 'none';
+}
+document.getElementById('roleTabs').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-role]');
+  if(btn) setRole(btn.dataset.role);
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const errEl = document.getElementById('formError');
+  errEl.style.display = 'none';
+
+  const email = document.getElementById('account').value.trim();
+  const password = document.getElementById('password').value;
+  const orgCode = document.getElementById('orgCode').value.trim();
+
+  if(!email || !password){
+    errEl.textContent = '請輸入帳號與密碼';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '登入中...';
+
+  try{
+    const data = await api('/api/auth/login', { method:'POST', body:{ email, password, orgCode: orgCode || undefined } });
+    if(data.user.role !== currentRole){
+      throw new Error('此帳號的身份與所選分頁不符，請確認角色是否選對');
+    }
+    setSession(data.token, data.user);
+    window.location.href = 'dashboard.html';
+  }catch(err){
+    errEl.textContent = err.message || '登入失敗，請稍後再試';
+    errEl.style.display = 'block';
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+});
+
+setRole('super');
+// 若已登入，直接導向主控台
+if (getToken() && getUser()) { window.location.href = 'dashboard.html'; }
+</script>
+</body>
+</html>
