@@ -48,15 +48,15 @@ const teacherId = teacherInfo.lastInsertRowid;
 
 console.log('🌱 建立示範學生：王小明、李佳蓉...');
 const studentInfo = db.prepare(`
-  INSERT INTO users (institution_id, name, email, password_hash, role, class_name, created_by)
-  VALUES (?,?,?,?, 'student', ?, ?)
-`).run(institutionId, '王小明', 'A1042501', hash('Study#2026'), '數學A班', teacherId);
+  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_name, guardian_name, guardian_phone, created_by)
+  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?)
+`).run(institutionId, '王小明', 'A1042501', hash('Study#2026'), '七年級', '數學A班', '王大明', '0911-111-111', teacherId);
 const studentId = studentInfo.lastInsertRowid;
 
 const studentInfo2 = db.prepare(`
-  INSERT INTO users (institution_id, name, email, password_hash, role, class_name, created_by)
-  VALUES (?,?,?,?, 'student', ?, ?)
-`).run(institutionId, '李佳蓉', 'A1042502', hash('Study#2026'), '數學A班', teacherId);
+  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_name, guardian_name, guardian_phone, created_by)
+  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?)
+`).run(institutionId, '李佳蓉', 'A1042502', hash('Study#2026'), '七年級', '數學A班', '李媽媽', '0922-222-222', teacherId);
 const studentId2 = studentInfo2.lastInsertRowid;
 
 console.log('🌱 建立示範課程：一元二次方程式...');

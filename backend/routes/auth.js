@@ -53,13 +53,16 @@ router.post('/login', (req, res) => {
       institution_id: user.institution_id,
       class_name: user.class_name,
       subject: user.subject,
+      grade: user.grade,
+      guardian_name: user.guardian_name,
+      guardian_phone: user.guardian_phone,
     },
   });
 });
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id,name,email,phone,role,institution_id,class_name,subject FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id,name,email,phone,role,institution_id,grade,class_name,guardian_name,guardian_phone,subject FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: '找不到使用者' });
   res.json({ user });
 });

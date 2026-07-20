@@ -318,7 +318,9 @@ async function initDB(){
       address:'', contact_phone:'', director_name:'', director_phone:'', director_email:'',
       authorization_year:'', authorization_period:'', ...i,
     }));
-    DB.users = (await storageGet('ss_users', [])).map(u=>({ phone:'', ...u }));
+    DB.users = (await storageGet('ss_users', [])).map(u=>({
+      phone:'', grade:'', guardian_name:'', guardian_phone:'', ...u,
+    }));
     DB.courses = await storageGet('ss_courses', []);
     DB.questions = await storageGet('ss_questions', []);
     DB.course_access = await storageGet('ss_course_access', []);
@@ -350,9 +352,11 @@ async function seedAll(){
   DB.users.push(teacher);
 
   const s1 = { id:nextId('users'), institution_id:inst.id, name:'王小明', email:'A1042501',
-    password_hash: await sha256Hex('Study#2026'), role:'student', class_name:'數學A班', status:'active', created_by:teacher.id, created_at:nowStr() };
+    password_hash: await sha256Hex('Study#2026'), role:'student', grade:'七年級', class_name:'數學A班',
+    guardian_name:'王大明', guardian_phone:'0911-111-111', status:'active', created_by:teacher.id, created_at:nowStr() };
   const s2 = { id:nextId('users'), institution_id:inst.id, name:'李佳蓉', email:'A1042502',
-    password_hash: await sha256Hex('Study#2026'), role:'student', class_name:'數學A班', status:'active', created_by:teacher.id, created_at:nowStr() };
+    password_hash: await sha256Hex('Study#2026'), role:'student', grade:'七年級', class_name:'數學A班',
+    guardian_name:'李媽媽', guardian_phone:'0922-222-222', status:'active', created_by:teacher.id, created_at:nowStr() };
   DB.users.push(s1, s2);
 
   const course = { id:nextId('courses'), institution_id:inst.id, teacher_id:teacher.id,
@@ -425,7 +429,9 @@ async function hLogin(body){
     if(!inst || inst.code.toUpperCase() !== String(orgCode).toUpperCase()) throw new Error('園所代碼不正確');
     if(inst.status==='disabled') throw new Error('此園所帳號已被停用，請聯繫系統管理員');
   }
-  const safeUser = { id:user.id, name:user.name, email:user.email, phone:user.phone||'', role:user.role, institution_id:user.institution_id, class_name:user.class_name, subject:user.subject };
+  const safeUser = { id:user.id, name:user.name, email:user.email, phone:user.phone||'', role:user.role,
+    institution_id:user.institution_id, grade:user.grade||'', class_name:user.class_name,
+    guardian_name:user.guardian_name||'', guardian_phone:user.guardian_phone||'', subject:user.subject };
   CURRENT = safeUser;
   await storageSet('ss_session', safeUser);
   return { user: safeUser };
@@ -500,13 +506,16 @@ function stripPassword(u){ const { password_hash, ...rest } = u; return rest; }
 
 async function hUsersCreate(body){
   must(CURRENT.role, ['institution','teacher']);
-  const { name, email, phone, password, subject, class_name } = body || {};
-  if(!name || !email || !password || (CURRENT.role==='institution' && !phone))
-    throw new Error(CURRENT.role==='institution' ? '請填寫老師姓名、登入帳號、電話與密碼' : '請填寫姓名、Email 與密碼');
+  const { name, email, phone, password, subject, grade, class_name, guardian_name, guardian_phone } = body || {};
+  const missingTeacherFields = CURRENT.role==='institution' && !phone;
+  const missingStudentFields = CURRENT.role==='teacher' && (!grade || !class_name || !guardian_name || !guardian_phone);
+  if(!name || !email || !password || missingTeacherFields || missingStudentFields)
+    throw new Error(CURRENT.role==='institution' ? '請填寫老師姓名、登入帳號、電話與密碼' : '請填寫學生姓名、登入帳號、年級、班級、家長資料與密碼');
   if(DB.users.some(u=>u.email.toLowerCase()===String(email).trim().toLowerCase())) throw new Error('此 Email 已被使用');
   const role = CURRENT.role==='institution' ? 'teacher' : 'student';
   const user = { id:nextId('users'), institution_id:CURRENT.institution_id, name:name.trim(), email:email.trim(),
-    phone:String(phone||'').trim(), password_hash: await sha256Hex(password), role, subject:subject||null, class_name:class_name||null,
+    phone:String(phone||'').trim(), password_hash: await sha256Hex(password), role, subject:subject||null,
+    grade:grade||null, class_name:class_name||null, guardian_name:guardian_name||null, guardian_phone:guardian_phone||null,
     created_by:CURRENT.id, status:'active', created_at:nowStr() };
   DB.users.push(user);
   await persist();
@@ -523,7 +532,10 @@ function hUsersPatch(id, body){
   if(body.status) target.status = body.status;
   if(body.name) target.name = body.name;
   if(body.phone !== undefined) target.phone = body.phone;
+  if(body.grade !== undefined) target.grade = body.grade;
   if(body.class_name) target.class_name = body.class_name;
+  if(body.guardian_name !== undefined) target.guardian_name = body.guardian_name;
+  if(body.guardian_phone !== undefined) target.guardian_phone = body.guardian_phone;
   if(body.subject) target.subject = body.subject;
   persist();
   return { user: stripPassword(target) };
@@ -916,22 +928,27 @@ function teacherStudentsHTML(){
   const { users: students } = hUsersList({ role:'student' });
   window.__myCourses = hCoursesList({}).courses;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
-  return `<table><thead><tr><th>學生</th><th>班級</th><th>狀態</th><th></th></tr></thead><tbody>
-  ${students.map(s=>`<tr><td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</td>
-    <td>${esc(s.class_name||'—')}</td><td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+  return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
+  ${students.map(s=>`<tr><td><div style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</div><small>${esc(s.email)}</small></td>
+    <td>${esc(s.grade||'—')}<br><small>${esc(s.class_name||'—')}</small></td>
+    <td>${esc(s.guardian_name||'—')}<br><small>${esc(s.guardian_phone||'—')}</small></td><td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td></tr>`).join('')}
   </tbody></table>`;
 }
 function openStudentModal(){
   openModal('新增學生', `
-    <div class="field"><label>姓名</label><input id="f_name"></div>
+    <div class="field"><label>姓名</label><input id="f_name" placeholder="學生姓名"></div>
     <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" placeholder="A1042503 或 email"></div>
-    <div class="field"><label>密碼</label><input id="f_password" type="password"></div>
+    <div class="field"><label>就讀年級</label><input id="f_grade" placeholder="例如 七年級"></div>
     <div class="field"><label>班級</label><input id="f_class" placeholder="例如 數學A班"></div>
+    <div class="field"><label>家長姓名</label><input id="f_guardianName" placeholder="家長或監護人姓名"></div>
+    <div class="field"><label>家長聯絡電話</label><input id="f_guardianPhone" type="tel" placeholder="0912-345-678"></div>
+    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitStudentModal()">建立學生帳號</button>`);
 }
 async function submitStudentModal(){
-  try{ await api('/api/users', { method:'POST', body:{ name:val('f_name'), email:val('f_email'), password:val('f_password'), class_name:val('f_class') } });
+  try{ await api('/api/users', { method:'POST', body:{ name:val('f_name'), email:val('f_email'), password:val('f_password'),
+      grade:val('f_grade'), class_name:val('f_class'), guardian_name:val('f_guardianName'), guardian_phone:val('f_guardianPhone') } });
     toast('學生帳號建立成功'); closeModal(); render(); }catch(err){ toast(err.message,'err'); }
 }
 function openAccessModal(studentId, studentName){

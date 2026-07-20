@@ -305,10 +305,11 @@ async function teacherStudentsHTML(){
   const { courses } = await api('/api/courses');
   window.__myCourses = courses;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
-  return `<table><thead><tr><th>學生</th><th>班級</th><th>狀態</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
   ${students.map(s=>`<tr>
-    <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</td>
-    <td>${esc(s.class_name||'—')}</td>
+    <td><div style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</div><small>${esc(s.email)}</small></td>
+    <td>${esc(s.grade||'—')}<br><small>${esc(s.class_name||'—')}</small></td>
+    <td>${esc(s.guardian_name||'—')}<br><small>${esc(s.guardian_phone||'—')}</small></td>
     <td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td>
   </tr>`).join('')}
@@ -318,13 +319,17 @@ function openStudentModal(){
   openModal('新增學生', `
     <div class="field"><label>姓名</label><input id="f_name" placeholder="學生姓名"></div>
     <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" placeholder="A1042503 或 email"></div>
-    <div class="field"><label>密碼</label><input id="f_password" type="password" placeholder="設定初始密碼"></div>
+    <div class="field"><label>就讀年級</label><input id="f_grade" placeholder="例如 七年級"></div>
     <div class="field"><label>班級</label><input id="f_class" placeholder="例如 數學A班"></div>
+    <div class="field"><label>家長姓名</label><input id="f_guardianName" placeholder="家長或監護人姓名"></div>
+    <div class="field"><label>家長聯絡電話</label><input id="f_guardianPhone" type="tel" placeholder="0912-345-678"></div>
+    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitStudentModal()">建立學生帳號</button>
   `);
 }
 async function submitStudentModal(){
-  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'), class_name: val('f_class') };
+  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'),
+    grade: val('f_grade'), class_name: val('f_class'), guardian_name: val('f_guardianName'), guardian_phone: val('f_guardianPhone') };
   try{ await api('/api/users', { method:'POST', body }); toast('學生帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }

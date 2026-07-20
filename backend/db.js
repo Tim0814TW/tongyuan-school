@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT DEFAULT '',
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('super','institution','teacher','student')),
+  grade TEXT DEFAULT '',
+  guardian_name TEXT DEFAULT '',
+  guardian_phone TEXT DEFAULT '',
   class_name TEXT,
   subject TEXT,
   created_by INTEGER REFERENCES users(id),
@@ -115,8 +118,16 @@ for (const [column, definition] of Object.entries(institutionMigrations)) {
 const userColumns = new Set(
   db.prepare('PRAGMA table_info(users)').all().map((column) => column.name)
 );
-if (!userColumns.has('phone')) {
-  db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''");
+const userMigrations = {
+  phone: "TEXT DEFAULT ''",
+  grade: "TEXT DEFAULT ''",
+  guardian_name: "TEXT DEFAULT ''",
+  guardian_phone: "TEXT DEFAULT ''",
+};
+for (const [column, definition] of Object.entries(userMigrations)) {
+  if (!userColumns.has(column)) {
+    db.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 module.exports = db;
