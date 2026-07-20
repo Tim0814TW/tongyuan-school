@@ -91,12 +91,23 @@ router.patch('/:id', requireAuth, requireRole('institution', 'teacher', 'super')
     (req.user.role === 'teacher' && target.created_by === req.user.id && target.role === 'student');
   if (!canManage) return res.status(403).json({ error: '權限不足，無法管理此帳號' });
 
-  const { status, name, phone, grade, class_name, guardian_name, guardian_phone, subject } = req.body || {};
+  const { status, name, email, phone, password, grade, class_name, guardian_name, guardian_phone, subject } = req.body || {};
+  if (email) {
+    const duplicate = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?')
+      .get(email.trim(), target.id);
+    if (duplicate) return res.status(409).json({ error: '此登入帳號已被使用' });
+  }
+  if (password && password.length < 8) {
+    return res.status(400).json({ error: '新密碼至少需要 8 個字元' });
+  }
+  const passwordHash = password ? bcrypt.hashSync(password, 10) : null;
   db.prepare(`
     UPDATE users SET
       status = COALESCE(?, status),
       name = COALESCE(?, name),
+      email = COALESCE(?, email),
       phone = COALESCE(?, phone),
+      password_hash = COALESCE(?, password_hash),
       grade = COALESCE(?, grade),
       class_name = COALESCE(?, class_name),
       guardian_name = COALESCE(?, guardian_name),
@@ -104,7 +115,8 @@ router.patch('/:id', requireAuth, requireRole('institution', 'teacher', 'super')
       subject = COALESCE(?, subject)
     WHERE id = ?
   `).run(
-    status || null, name || null, phone ?? null, grade ?? null, class_name || null,
+    status || null, name || null, email ? email.trim() : null, phone ?? null, passwordHash,
+    grade ?? null, class_name || null,
     guardian_name ?? null, guardian_phone ?? null, subject || null, req.params.id
   );
 

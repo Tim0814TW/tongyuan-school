@@ -212,6 +212,7 @@ async function submitInstModal(){
 async function renderInstitution(app){
   const tab = state.tab.institution || 'overview';
   const { users: teachers } = await api('/api/users?role=teacher');
+  window.__teachers = teachers;
 
   app.innerHTML = `
     <div class="page-head">
@@ -237,7 +238,7 @@ function teacherTable(rows){
     <td>${esc(t.class_name||'—')}</td>
     <td class="mono">${t.course_count}</td>
     <td>${t.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openTeacherModal(${t.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
   </tr>`).join('')}
   </tbody></table>`;
 }
@@ -245,20 +246,23 @@ async function toggleUser(id, status){
   await api(`/api/users/${id}`, { method:'PATCH', body:{ status } });
   toast('狀態已更新'); render();
 }
-function openTeacherModal(){
-  openModal('新增老師', `
-    <div class="field"><label>姓名</label><input id="f_name" placeholder="老師姓名"></div>
-    <div class="field"><label>登入帳號（Email）</label><input id="f_email" type="email" placeholder="teacher@example.com"></div>
-    <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" placeholder="0912-345-678"></div>
-    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
-    <div class="field"><label>負責科目</label><input id="f_subject" placeholder="例如 國中數學"></div>
-    <div class="field"><label>負責班級</label><input id="f_class" placeholder="例如 數學A班"></div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">建立老師帳號</button>
+function openTeacherModal(teacherId=null){
+  const teacher = teacherId ? (window.__teachers||[]).find(t=>t.id===teacherId) : null;
+  openModal(teacher?'編輯老師資料':'新增老師', `
+    <input id="f_userId" type="hidden" value="${teacher?.id||''}">
+    <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(teacher?.name||'')}" placeholder="老師姓名"></div>
+    <div class="field"><label>登入帳號（Email）</label><input id="f_email" type="email" value="${escAttr(teacher?.email||'')}" placeholder="teacher@example.com"></div>
+    <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" value="${escAttr(teacher?.phone||'')}" placeholder="0912-345-678"></div>
+    <div class="field"><label>${teacher?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${teacher?'不修改請留空':'至少 8 個字元'}"></div>
+    <div class="field"><label>負責科目</label><input id="f_subject" value="${escAttr(teacher?.subject||'')}" placeholder="例如 國中數學"></div>
+    <div class="field"><label>負責班級</label><input id="f_class" value="${escAttr(teacher?.class_name||'')}" placeholder="例如 數學A班"></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">${teacher?'儲存老師資料':'建立老師帳號'}</button>
   `);
 }
 async function submitTeacherModal(){
+  const userId = val('f_userId');
   const body = { name: val('f_name'), email: val('f_email'), phone: val('f_phone'), password: val('f_password'), subject: val('f_subject'), class_name: val('f_class') };
-  try{ await api('/api/users', { method:'POST', body }); toast('老師帳號建立成功'); closeModal(); render(); }
+  try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'老師資料已更新':'老師帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }
 
@@ -304,6 +308,7 @@ async function teacherStudentsHTML(){
   const { users: students } = await api('/api/users?role=student');
   const { courses } = await api('/api/courses');
   window.__myCourses = courses;
+  window.__students = students;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
   return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
   ${students.map(s=>`<tr>
@@ -311,26 +316,29 @@ async function teacherStudentsHTML(){
     <td>${esc(s.grade||'—')}<br><small>${esc(s.class_name||'—')}</small></td>
     <td>${esc(s.guardian_name||'—')}<br><small>${esc(s.guardian_phone||'—')}</small></td>
     <td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openStudentModal(${s.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td>
   </tr>`).join('')}
   </tbody></table>`;
 }
-function openStudentModal(){
-  openModal('新增學生', `
-    <div class="field"><label>姓名</label><input id="f_name" placeholder="學生姓名"></div>
-    <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" placeholder="A1042503 或 email"></div>
-    <div class="field"><label>就讀年級</label><input id="f_grade" placeholder="例如 七年級"></div>
-    <div class="field"><label>班級</label><input id="f_class" placeholder="例如 數學A班"></div>
-    <div class="field"><label>家長姓名</label><input id="f_guardianName" placeholder="家長或監護人姓名"></div>
-    <div class="field"><label>家長聯絡電話</label><input id="f_guardianPhone" type="tel" placeholder="0912-345-678"></div>
-    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitStudentModal()">建立學生帳號</button>
+function openStudentModal(studentId=null){
+  const student = studentId ? (window.__students||[]).find(s=>s.id===studentId) : null;
+  openModal(student?'編輯學生資料':'新增學生', `
+    <input id="f_userId" type="hidden" value="${student?.id||''}">
+    <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(student?.name||'')}" placeholder="學生姓名"></div>
+    <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" value="${escAttr(student?.email||'')}" placeholder="A1042503 或 email"></div>
+    <div class="field"><label>就讀年級</label><input id="f_grade" value="${escAttr(student?.grade||'')}" placeholder="例如 七年級"></div>
+    <div class="field"><label>班級</label><input id="f_class" value="${escAttr(student?.class_name||'')}" placeholder="例如 數學A班"></div>
+    <div class="field"><label>家長姓名</label><input id="f_guardianName" value="${escAttr(student?.guardian_name||'')}" placeholder="家長或監護人姓名"></div>
+    <div class="field"><label>家長聯絡電話</label><input id="f_guardianPhone" type="tel" value="${escAttr(student?.guardian_phone||'')}" placeholder="0912-345-678"></div>
+    <div class="field"><label>${student?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${student?'不修改請留空':'至少 8 個字元'}"></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitStudentModal()">${student?'儲存學生資料':'建立學生帳號'}</button>
   `);
 }
 async function submitStudentModal(){
+  const userId = val('f_userId');
   const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'),
     grade: val('f_grade'), class_name: val('f_class'), guardian_name: val('f_guardianName'), guardian_phone: val('f_guardianPhone') };
-  try{ await api('/api/users', { method:'POST', body }); toast('學生帳號建立成功'); closeModal(); render(); }
+  try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'學生資料已更新':'學生帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }
 async function openAccessModal(studentId, studentName){
