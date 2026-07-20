@@ -41,9 +41,9 @@ const ownerInfo = db.prepare(`
 
 console.log('🌱 建立示範老師：林曉薇...');
 const teacherInfo = db.prepare(`
-  INSERT INTO users (institution_id, name, email, password_hash, role, subject, class_name, created_by)
-  VALUES (?,?,?,?, 'teacher', ?, ?, ?)
-`).run(institutionId, '林曉薇', 'lin.hsiaowei@bozhi.edu.tw', hash('Teach#2026'), '國中數學', '數學A班／B班', ownerInfo.lastInsertRowid);
+  INSERT INTO users (institution_id, name, email, phone, password_hash, role, subject, class_name, created_by)
+  VALUES (?,?,?,?,?, 'teacher', ?, ?, ?)
+`).run(institutionId, '林曉薇', 'lin.hsiaowei@bozhi.edu.tw', '0912-222-333', hash('Teach#2026'), '國中數學', '數學A班／B班', ownerInfo.lastInsertRowid);
 const teacherId = teacherInfo.lastInsertRowid;
 
 console.log('🌱 建立示範學生：王小明、李佳蓉...');

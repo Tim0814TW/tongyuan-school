@@ -48,6 +48,7 @@ router.post('/login', (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role,
       institution_id: user.institution_id,
       class_name: user.class_name,
@@ -58,7 +59,7 @@ router.post('/login', (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id,name,email,role,institution_id,class_name,subject FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id,name,email,phone,role,institution_id,class_name,subject FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: '找不到使用者' });
   res.json({ user });
 });

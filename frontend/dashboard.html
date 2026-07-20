@@ -229,9 +229,10 @@ async function renderInstitution(app){
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
-  return `<table><thead><tr><th>老師</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
   ${rows.map(t=>`<tr>
     <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
+    <td>${esc(t.phone||'—')}<br><small>${esc(t.email)}</small></td>
     <td>${esc(t.subject||'—')}</td>
     <td>${esc(t.class_name||'—')}</td>
     <td class="mono">${t.course_count}</td>
@@ -247,15 +248,16 @@ async function toggleUser(id, status){
 function openTeacherModal(){
   openModal('新增老師', `
     <div class="field"><label>姓名</label><input id="f_name" placeholder="老師姓名"></div>
-    <div class="field"><label>Email（登入帳號）</label><input id="f_email" placeholder="teacher@example.com"></div>
-    <div class="field"><label>密碼</label><input id="f_password" type="password" placeholder="設定初始密碼"></div>
+    <div class="field"><label>登入帳號（Email）</label><input id="f_email" type="email" placeholder="teacher@example.com"></div>
+    <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" placeholder="0912-345-678"></div>
+    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <div class="field"><label>負責科目</label><input id="f_subject" placeholder="例如 國中數學"></div>
     <div class="field"><label>負責班級</label><input id="f_class" placeholder="例如 數學A班"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">建立老師帳號</button>
   `);
 }
 async function submitTeacherModal(){
-  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'), subject: val('f_subject'), class_name: val('f_class') };
+  const body = { name: val('f_name'), email: val('f_email'), phone: val('f_phone'), password: val('f_password'), subject: val('f_subject'), class_name: val('f_class') };
   try{ await api('/api/users', { method:'POST', body }); toast('老師帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }

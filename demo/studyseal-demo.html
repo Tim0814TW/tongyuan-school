@@ -318,7 +318,7 @@ async function initDB(){
       address:'', contact_phone:'', director_name:'', director_phone:'', director_email:'',
       authorization_year:'', authorization_period:'', ...i,
     }));
-    DB.users = await storageGet('ss_users', []);
+    DB.users = (await storageGet('ss_users', [])).map(u=>({ phone:'', ...u }));
     DB.courses = await storageGet('ss_courses', []);
     DB.questions = await storageGet('ss_questions', []);
     DB.course_access = await storageGet('ss_course_access', []);
@@ -345,7 +345,7 @@ async function seedAll(){
   DB.users.push(owner);
 
   const teacher = { id:nextId('users'), institution_id:inst.id, name:'林曉薇', email:'lin.hsiaowei@bozhi.edu.tw',
-    password_hash: await sha256Hex('Teach#2026'), role:'teacher', subject:'國中數學', class_name:'數學A班／B班',
+    phone:'0912-222-333', password_hash: await sha256Hex('Teach#2026'), role:'teacher', subject:'國中數學', class_name:'數學A班／B班',
     status:'active', created_by:owner.id, created_at:nowStr() };
   DB.users.push(teacher);
 
@@ -425,7 +425,7 @@ async function hLogin(body){
     if(!inst || inst.code.toUpperCase() !== String(orgCode).toUpperCase()) throw new Error('園所代碼不正確');
     if(inst.status==='disabled') throw new Error('此園所帳號已被停用，請聯繫系統管理員');
   }
-  const safeUser = { id:user.id, name:user.name, email:user.email, role:user.role, institution_id:user.institution_id, class_name:user.class_name, subject:user.subject };
+  const safeUser = { id:user.id, name:user.name, email:user.email, phone:user.phone||'', role:user.role, institution_id:user.institution_id, class_name:user.class_name, subject:user.subject };
   CURRENT = safeUser;
   await storageSet('ss_session', safeUser);
   return { user: safeUser };
@@ -500,12 +500,13 @@ function stripPassword(u){ const { password_hash, ...rest } = u; return rest; }
 
 async function hUsersCreate(body){
   must(CURRENT.role, ['institution','teacher']);
-  const { name, email, password, subject, class_name } = body || {};
-  if(!name || !email || !password) throw new Error('請填寫姓名、Email 與密碼');
+  const { name, email, phone, password, subject, class_name } = body || {};
+  if(!name || !email || !password || (CURRENT.role==='institution' && !phone))
+    throw new Error(CURRENT.role==='institution' ? '請填寫老師姓名、登入帳號、電話與密碼' : '請填寫姓名、Email 與密碼');
   if(DB.users.some(u=>u.email.toLowerCase()===String(email).trim().toLowerCase())) throw new Error('此 Email 已被使用');
   const role = CURRENT.role==='institution' ? 'teacher' : 'student';
   const user = { id:nextId('users'), institution_id:CURRENT.institution_id, name:name.trim(), email:email.trim(),
-    password_hash: await sha256Hex(password), role, subject:subject||null, class_name:class_name||null,
+    phone:String(phone||'').trim(), password_hash: await sha256Hex(password), role, subject:subject||null, class_name:class_name||null,
     created_by:CURRENT.id, status:'active', created_at:nowStr() };
   DB.users.push(user);
   await persist();
@@ -521,6 +522,7 @@ function hUsersPatch(id, body){
   if(!canManage) throw new Error('權限不足，無法管理此帳號');
   if(body.status) target.status = body.status;
   if(body.name) target.name = body.name;
+  if(body.phone !== undefined) target.phone = body.phone;
   if(body.class_name) target.class_name = body.class_name;
   if(body.subject) target.subject = body.subject;
   persist();
@@ -864,9 +866,9 @@ async function renderInstitution(app){
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
-  return `<table><thead><tr><th>老師</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
   ${rows.map(t=>`<tr><td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
-    <td>${esc(t.subject||'—')}</td><td>${esc(t.class_name||'—')}</td><td class="mono">${t.course_count}</td>
+    <td>${esc(t.phone||'—')}<br><small>${esc(t.email)}</small></td><td>${esc(t.subject||'—')}</td><td>${esc(t.class_name||'—')}</td><td class="mono">${t.course_count}</td>
     <td>${t.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
   </tr>`).join('')}</tbody></table>`;
@@ -874,15 +876,16 @@ function teacherTable(rows){
 function toggleUser(id, status){ hUsersPatch(id, { status }); toast('狀態已更新'); render(); }
 function openTeacherModal(){
   openModal('新增老師', `
-    <div class="field"><label>姓名</label><input id="f_name"></div>
-    <div class="field"><label>Email（登入帳號）</label><input id="f_email"></div>
-    <div class="field"><label>密碼</label><input id="f_password" type="password"></div>
+    <div class="field"><label>姓名</label><input id="f_name" placeholder="老師姓名"></div>
+    <div class="field"><label>登入帳號（Email）</label><input id="f_email" type="email" placeholder="teacher@example.com"></div>
+    <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" placeholder="0912-345-678"></div>
+    <div class="field"><label>初始密碼</label><input id="f_password" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <div class="field"><label>負責科目</label><input id="f_subject" placeholder="例如 國中數學"></div>
     <div class="field"><label>負責班級</label><input id="f_class" placeholder="例如 數學A班"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">建立老師帳號</button>`);
 }
 async function submitTeacherModal(){
-  try{ await api('/api/users', { method:'POST', body:{ name:val('f_name'), email:val('f_email'), password:val('f_password'), subject:val('f_subject'), class_name:val('f_class') } });
+  try{ await api('/api/users', { method:'POST', body:{ name:val('f_name'), email:val('f_email'), phone:val('f_phone'), password:val('f_password'), subject:val('f_subject'), class_name:val('f_class') } });
     toast('老師帳號建立成功'); closeModal(); render(); }catch(err){ toast(err.message,'err'); }
 }
 

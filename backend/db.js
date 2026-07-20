@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
   institution_id INTEGER REFERENCES institutions(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  phone TEXT DEFAULT '',
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('super','institution','teacher','student')),
   class_name TEXT,
@@ -109,6 +110,13 @@ for (const [column, definition] of Object.entries(institutionMigrations)) {
   if (!institutionColumns.has(column)) {
     db.exec(`ALTER TABLE institutions ADD COLUMN ${column} ${definition}`);
   }
+}
+
+const userColumns = new Set(
+  db.prepare('PRAGMA table_info(users)').all().map((column) => column.name)
+);
+if (!userColumns.has('phone')) {
+  db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''");
 }
 
 module.exports = db;
