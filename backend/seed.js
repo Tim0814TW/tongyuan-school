@@ -23,8 +23,15 @@ db.prepare(`
 
 console.log('🌱 建立示範園所：博智文理補習班...');
 const inst = db.prepare(`
-  INSERT INTO institutions (name, code, plan, status) VALUES (?,?,?,?)
-`).run('博智文理補習班', 'BOZI2024', '旗艦方案', 'active');
+  INSERT INTO institutions (
+    name, code, address, contact_phone, director_name, director_phone,
+    director_email, authorization_year, authorization_period, plan, status
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+`).run(
+  '博智文理補習班', 'BOZI2024', '苗栗縣竹南鎮示範路 100 號', '037-123-456',
+  '王主任', '0912-345-678', 'owner@bozhi.edu.tw', '2026',
+  '2026/07/01 - 2027/06/30', '旗艦方案', 'active'
+);
 const institutionId = inst.lastInsertRowid;
 
 const ownerInfo = db.prepare(`

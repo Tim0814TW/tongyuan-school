@@ -16,6 +16,13 @@ CREATE TABLE IF NOT EXISTS institutions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   code TEXT UNIQUE NOT NULL,
+  address TEXT DEFAULT '',
+  contact_phone TEXT DEFAULT '',
+  director_name TEXT DEFAULT '',
+  director_phone TEXT DEFAULT '',
+  director_email TEXT,
+  authorization_year TEXT DEFAULT '',
+  authorization_period TEXT DEFAULT '',
   plan TEXT DEFAULT '標準方案',
   status TEXT DEFAULT 'active' CHECK(status IN ('active','disabled')),
   created_at TEXT DEFAULT (datetime('now'))
@@ -84,5 +91,24 @@ CREATE TABLE IF NOT EXISTS answers (
   overridden_by INTEGER REFERENCES users(id)
 );
 `);
+
+// 輕量 migration：既有 SQLite 資料庫也會補上新欄位，不需清空資料。
+const institutionColumns = new Set(
+  db.prepare('PRAGMA table_info(institutions)').all().map((column) => column.name)
+);
+const institutionMigrations = {
+  address: "TEXT DEFAULT ''",
+  contact_phone: "TEXT DEFAULT ''",
+  director_name: "TEXT DEFAULT ''",
+  director_phone: "TEXT DEFAULT ''",
+  director_email: 'TEXT',
+  authorization_year: "TEXT DEFAULT ''",
+  authorization_period: "TEXT DEFAULT ''",
+};
+for (const [column, definition] of Object.entries(institutionMigrations)) {
+  if (!institutionColumns.has(column)) {
+    db.exec(`ALTER TABLE institutions ADD COLUMN ${column} ${definition}`);
+  }
+}
 
 module.exports = db;

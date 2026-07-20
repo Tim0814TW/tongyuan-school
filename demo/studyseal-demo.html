@@ -314,7 +314,10 @@ async function initDB(){
   if(insts === null){
     await seedAll();
   } else {
-    DB.institutions = insts;
+    DB.institutions = insts.map(i=>({
+      address:'', contact_phone:'', director_name:'', director_phone:'', director_email:'',
+      authorization_year:'', authorization_period:'', ...i,
+    }));
     DB.users = await storageGet('ss_users', []);
     DB.courses = await storageGet('ss_courses', []);
     DB.questions = await storageGet('ss_questions', []);
@@ -331,7 +334,10 @@ async function seedAll(){
   DB.users.push({ id:nextId('users'), institution_id:null, name:'系統管理員', email:'admin@studyseal.io',
     password_hash: await sha256Hex('Admin@2026'), role:'super', status:'active', created_at:nowStr() });
 
-  const inst = { id:nextId('institutions'), name:'博智文理補習班', code:'BOZI2024', plan:'旗艦方案', status:'active', created_at:nowStr() };
+  const inst = { id:nextId('institutions'), name:'博智文理補習班', code:'BOZI2024',
+    address:'苗栗縣竹南鎮示範路 100 號', contact_phone:'037-123-456', director_name:'王主任',
+    director_phone:'0912-345-678', director_email:'owner@bozhi.edu.tw', authorization_year:'2026',
+    authorization_period:'2026/07/01 - 2027/06/30', plan:'旗艦方案', status:'active', created_at:nowStr() };
   DB.institutions.push(inst);
 
   const owner = { id:nextId('users'), institution_id:inst.id, name:'園所管理員', email:'owner@bozhi.edu.tw',
@@ -438,10 +444,15 @@ function hInstList(){
 }
 async function hInstCreate(body){
   must(CURRENT.role, ['super']);
-  const { name, plan, ownerName, ownerEmail, ownerPassword } = body || {};
-  if(!name || !ownerName || !ownerEmail || !ownerPassword) throw new Error('請填寫園所名稱與管理員帳號資訊');
+  const { name, address, contactPhone, directorName, directorPhone, directorEmail,
+    authorizationYear, authorizationPeriod, plan, ownerName, ownerEmail, ownerPassword } = body || {};
+  if(!name || !address || !contactPhone || !directorName || !directorPhone || !directorEmail || !ownerName || !ownerEmail || !ownerPassword)
+    throw new Error('請填寫完整園所、主任與管理員帳號資訊');
   if(DB.users.some(u=>u.email.toLowerCase()===ownerEmail.trim().toLowerCase())) throw new Error('此 Email 已被使用');
-  const inst = { id:nextId('institutions'), name:name.trim(), code:genCode(), plan:plan||'標準方案', status:'active', created_at:nowStr() };
+  const inst = { id:nextId('institutions'), name:name.trim(), code:genCode(), address:address.trim(),
+    contact_phone:contactPhone.trim(), director_name:directorName.trim(), director_phone:directorPhone.trim(),
+    director_email:directorEmail.trim(), authorization_year:String(authorizationYear||'').trim(),
+    authorization_period:String(authorizationPeriod||'').trim(), plan:plan||'標準方案', status:'active', created_at:nowStr() };
   DB.institutions.push(inst);
   const owner = { id:nextId('users'), institution_id:inst.id, name:ownerName.trim(), email:ownerEmail.trim(),
     password_hash: await sha256Hex(ownerPassword), role:'institution', status:'active', created_by:CURRENT.id, created_at:nowStr() };
@@ -455,6 +466,14 @@ function hInstPatch(id, body){
   if(!inst) throw new Error('找不到園所');
   if(body.status) inst.status = body.status;
   if(body.plan) inst.plan = body.plan;
+  if(body.name) inst.name = body.name;
+  if(body.address) inst.address = body.address;
+  if(body.contactPhone) inst.contact_phone = body.contactPhone;
+  if(body.directorName) inst.director_name = body.directorName;
+  if(body.directorPhone) inst.director_phone = body.directorPhone;
+  if(body.directorEmail) inst.director_email = body.directorEmail;
+  if(body.authorizationYear !== undefined) inst.authorization_year = body.authorizationYear;
+  if(body.authorizationPeriod !== undefined) inst.authorization_period = body.authorizationPeriod;
   persist();
   return { institution: instWithCounts(inst) };
 }
@@ -791,9 +810,12 @@ async function renderSuper(app){
 }
 function instTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何園所，點右上角「新增園所」開始建立。</div>';
-  return `<table><thead><tr><th>園所名稱</th><th>代碼</th><th>方案</th><th>老師數</th><th>學生數</th><th>狀態</th><th></th></tr></thead><tbody>
-  ${rows.map(i=>`<tr><td><b>${esc(i.name)}</b></td><td class="mono">${i.code}</td><td>${esc(i.plan)}</td>
-    <td class="mono">${i.teacher_count}</td><td class="mono">${i.student_count}</td>
+  return `<table><thead><tr><th>園所名稱</th><th>聯絡資料</th><th>主任</th><th>授權</th><th>師生</th><th>狀態</th><th></th></tr></thead><tbody>
+  ${rows.map(i=>`<tr><td><b>${esc(i.name)}</b><br><small class="mono">${esc(i.code)}・${esc(i.plan)}</small></td>
+    <td>${esc(i.contact_phone||'—')}<br><small>${esc(i.address||'尚未填寫地址')}</small></td>
+    <td>${esc(i.director_name||'—')}<br><small>${esc(i.director_phone||'')} ${esc(i.director_email||'')}</small></td>
+    <td>${esc(i.authorization_year||'未設定')}<br><small>${esc(i.authorization_period||'尚未填寫期限')}</small></td>
+    <td class="mono">老師 ${i.teacher_count}<br>學生 ${i.student_count}</td>
     <td>${i.status==='active'?'<span class="badge badge-jade">啟用中</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="toggleInst(${i.id}, '${i.status==='active'?'disabled':'active'}')">${i.status==='active'?'停用':'啟用'}</button></td>
   </tr>`).join('')}</tbody></table>`;
@@ -802,15 +824,26 @@ async function toggleInst(id, status){ hInstPatch(id, { status }); toast('狀態
 function openInstModal(){
   openModal('新增園所', `
     <div class="field"><label>園所名稱</label><input id="f_name" placeholder="例如 博智文理補習班"></div>
+    <div class="field"><label>園所地址</label><input id="f_address" placeholder="完整地址"></div>
+    <div class="field"><label>園所聯絡電話</label><input id="f_contactPhone" type="tel" placeholder="02-2345-6789"></div>
     <div class="field"><label>方案</label><select id="f_plan"><option>標準方案</option><option>旗艦方案</option></select></div>
-    <div class="field"><label>管理員姓名</label><input id="f_ownerName"></div>
-    <div class="field"><label>管理員 Email</label><input id="f_ownerEmail"></div>
-    <div class="field"><label>管理員密碼</label><input id="f_ownerPassword" type="password"></div>
+    <div class="field"><label>主任姓名</label><input id="f_directorName" placeholder="王主任"></div>
+    <div class="field"><label>主任電話</label><input id="f_directorPhone" type="tel" placeholder="0912-345-678"></div>
+    <div class="field"><label>主任 Email</label><input id="f_directorEmail" type="email" placeholder="director@example.com"></div>
+    <div class="field"><label>授權年份</label><input id="f_authorizationYear" placeholder="例如 2026"></div>
+    <div class="field"><label>授權期限／時間</label><input id="f_authorizationPeriod" placeholder="例如 2026/07/01 - 2027/06/30"></div>
+    <div class="field"><label>管理員姓名</label><input id="f_ownerName" placeholder="園所管理員姓名"></div>
+    <div class="field"><label>管理員登入帳號（Email）</label><input id="f_ownerEmail" type="email" placeholder="owner@example.com"></div>
+    <div class="field"><label>管理員初始密碼</label><input id="f_ownerPassword" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstModal()">建立園所</button>`);
 }
 async function submitInstModal(){
   try{
-    await api('/api/institutions', { method:'POST', body:{ name:val('f_name'), plan:val('f_plan'), ownerName:val('f_ownerName'), ownerEmail:val('f_ownerEmail'), ownerPassword:val('f_ownerPassword') } });
+    await api('/api/institutions', { method:'POST', body:{ name:val('f_name'), plan:val('f_plan'),
+      address:val('f_address'), contactPhone:val('f_contactPhone'), directorName:val('f_directorName'),
+      directorPhone:val('f_directorPhone'), directorEmail:val('f_directorEmail'),
+      authorizationYear:val('f_authorizationYear'), authorizationPeriod:val('f_authorizationPeriod'),
+      ownerName:val('f_ownerName'), ownerEmail:val('f_ownerEmail'), ownerPassword:val('f_ownerPassword') } });
     toast('園所建立成功'); closeModal(); render();
   }catch(err){ toast(err.message,'err'); }
 }
