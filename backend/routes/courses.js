@@ -10,11 +10,22 @@ function parseOptions(row) {
   return { ...row, options: JSON.parse(row.options) };
 }
 
+function courseForUser(courseId, user) {
+  const course = db.prepare('SELECT * FROM courses WHERE id=?').get(courseId);
+  if (!course) return null;
+  if (user.role === 'super') return course;
+  if (user.role === 'student') {
+    const access = db.prepare('SELECT 1 FROM course_access WHERE course_id=? AND student_id=?').get(course.id, user.id);
+    return access ? course : null;
+  }
+  return course.institution_id === user.institution_id ? course : null;
+}
+
 // GET /api/courses — 依角色回傳對應課程
 router.get('/', requireAuth, (req, res) => {
   let rows;
   if (req.user.role === 'teacher') {
-    rows = db.prepare('SELECT * FROM courses WHERE teacher_id = ? ORDER BY created_at DESC').all(req.user.id);
+    rows = db.prepare('SELECT * FROM courses WHERE institution_id = ? ORDER BY created_at DESC').all(req.user.institution_id);
   } else if (req.user.role === 'institution' || req.user.role === 'super') {
     const instId = req.user.role === 'super' ? req.query.institution_id : req.user.institution_id;
     if (!instId) return res.status(400).json({ error: '缺少園所資訊' });
@@ -40,6 +51,7 @@ router.get('/', requireAuth, (req, res) => {
       teacher_name: teacher?.name || '',
       teacher_email: teacher?.email || '',
       question_count: qCount,
+      can_edit: req.user.role === 'institution' || (req.user.role === 'teacher' && c.teacher_id === req.user.id),
       my_attempt: myAttempt || null,
     };
   });
@@ -60,13 +72,8 @@ router.post('/', requireAuth, requireRole('teacher'), (req, res) => {
 
 // GET /api/courses/:id — 課程詳情（含題目；學生看不到正確答案，除非已作答過）
 router.get('/:id', requireAuth, (req, res) => {
-  const course = db.prepare('SELECT * FROM courses WHERE id=?').get(req.params.id);
-  if (!course) return res.status(404).json({ error: '找不到課程' });
-
-  if (req.user.role === 'student') {
-    const access = db.prepare('SELECT 1 FROM course_access WHERE course_id=? AND student_id=?').get(course.id, req.user.id);
-    if (!access) return res.status(403).json({ error: '你尚未被指派此課程' });
-  }
+  const course = courseForUser(req.params.id, req.user);
+  if (!course) return res.status(404).json({ error: '找不到課程或尚未開通' });
 
   const questions = db.prepare('SELECT * FROM questions WHERE course_id=? ORDER BY order_index ASC, id ASC').all(course.id).map(parseOptions);
 
@@ -168,24 +175,39 @@ router.delete('/questions/:id', requireAuth, requireRole('teacher'), (req, res) 
 
 // GET /api/courses/:id/access — 查詢已被指派此課程的學生ID列表
 router.get('/:id/access', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
+  const course = courseForUser(req.params.id, req.user);
+  if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
+    return res.status(404).json({ error: '找不到可管理的課程' });
+  }
   const rows = db.prepare('SELECT student_id FROM course_access WHERE course_id=?').all(req.params.id);
   res.json({ student_ids: rows.map((r) => r.student_id) });
 });
 
 // POST /api/courses/:id/access — 指派學生可觀看此課程
-router.post('/:id/access', requireAuth, requireRole('teacher'), (req, res) => {
-  const course = db.prepare('SELECT * FROM courses WHERE id=?').get(req.params.id);
-  if (!course || course.teacher_id !== req.user.id) return res.status(404).json({ error: '找不到課程' });
+router.post('/:id/access', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
+  const course = courseForUser(req.params.id, req.user);
+  if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
+    return res.status(404).json({ error: '找不到可管理的課程' });
+  }
   const { student_id } = req.body || {};
-  const student = db.prepare("SELECT * FROM users WHERE id=? AND role='student' AND created_by=?").get(student_id, req.user.id);
+  const student = db.prepare("SELECT * FROM users WHERE id=? AND institution_id=? AND role='student' AND status='active'")
+    .get(student_id, course.institution_id);
   if (!student) return res.status(404).json({ error: '找不到該學生' });
 
-  db.prepare('INSERT OR IGNORE INTO course_access (course_id, student_id) VALUES (?,?)').run(course.id, student_id);
+  db.prepare("INSERT OR IGNORE INTO course_access (course_id, student_id, granted_by, granted_at) VALUES (?,?,?,datetime('now'))")
+    .run(course.id, student_id, req.user.id);
   res.status(201).json({ ok: true });
 });
 
 // DELETE /api/courses/:id/access/:studentId
-router.delete('/:id/access/:studentId', requireAuth, requireRole('teacher'), (req, res) => {
+router.delete('/:id/access/:studentId', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
+  const course = courseForUser(req.params.id, req.user);
+  if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
+    return res.status(404).json({ error: '找不到可管理的課程' });
+  }
+  const student = db.prepare("SELECT id FROM users WHERE id=? AND institution_id=? AND role='student'")
+    .get(req.params.studentId, course.institution_id);
+  if (!student) return res.status(404).json({ error: '找不到該學生' });
   db.prepare('DELETE FROM course_access WHERE course_id=? AND student_id=?').run(req.params.id, req.params.studentId);
   res.json({ ok: true });
 });
@@ -238,6 +260,10 @@ router.post('/:id/submit', requireAuth, requireRole('student'), (req, res) => {
 
 // GET /api/courses/:id/attempts — 老師查看全班作答狀況
 router.get('/:id/attempts', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
+  const course = courseForUser(req.params.id, req.user);
+  if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
+    return res.status(404).json({ error: '找不到可管理的課程' });
+  }
   const rows = db.prepare(`
     SELECT a.*, u.name AS student_name, u.class_name
     FROM attempts a JOIN users u ON u.id = a.student_id
@@ -250,6 +276,10 @@ router.get('/:id/attempts', requireAuth, requireRole('teacher', 'institution'), 
 router.get('/attempts/:id', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
   const attempt = db.prepare('SELECT * FROM attempts WHERE id=?').get(req.params.id);
   if (!attempt) return res.status(404).json({ error: '找不到作答紀錄' });
+  const course = courseForUser(attempt.course_id, req.user);
+  if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
+    return res.status(404).json({ error: '找不到可管理的作答紀錄' });
+  }
   const answers = db.prepare(`
     SELECT ans.*, q.text, q.options, q.correct_index, q.type, q.image_url
     FROM answers ans JOIN questions q ON q.id = ans.question_id
@@ -263,6 +293,9 @@ router.patch('/attempts/:attemptId/answers/:questionId', requireAuth, requireRol
   const { selected_index, is_correct } = req.body || {};
   const answer = db.prepare('SELECT * FROM answers WHERE attempt_id=? AND question_id=?').get(req.params.attemptId, req.params.questionId);
   if (!answer) return res.status(404).json({ error: '找不到該筆作答' });
+  const question = db.prepare('SELECT course_id FROM questions WHERE id=?').get(req.params.questionId);
+  const course = question && db.prepare('SELECT * FROM courses WHERE id=?').get(question.course_id);
+  if (!course || course.teacher_id !== req.user.id) return res.status(403).json({ error: '只能批閱自己課程的作答' });
 
   db.prepare('UPDATE answers SET selected_index = COALESCE(?, selected_index), is_correct = COALESCE(?, is_correct), overridden_by=? WHERE id=?')
     .run(selected_index ?? null, is_correct ?? null, req.user.id, answer.id);

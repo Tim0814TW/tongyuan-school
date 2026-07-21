@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS course_access (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  granted_by INTEGER REFERENCES users(id),
+  granted_at TEXT DEFAULT (datetime('now')),
   UNIQUE(course_id, student_id)
 );
 
@@ -127,6 +129,19 @@ const userMigrations = {
 for (const [column, definition] of Object.entries(userMigrations)) {
   if (!userColumns.has(column)) {
     db.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+const courseAccessColumns = new Set(
+  db.prepare('PRAGMA table_info(course_access)').all().map((column) => column.name)
+);
+const courseAccessMigrations = {
+  granted_by: 'INTEGER REFERENCES users(id)',
+  granted_at: "TEXT DEFAULT ''",
+};
+for (const [column, definition] of Object.entries(courseAccessMigrations)) {
+  if (!courseAccessColumns.has(column)) {
+    db.exec(`ALTER TABLE course_access ADD COLUMN ${column} ${definition}`);
   }
 }
 
