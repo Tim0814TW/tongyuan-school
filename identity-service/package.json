@@ -1,0 +1,26 @@
+{
+  "name": "tongyuan-identity-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "童願文創跨系統共用帳號與單一登入服務",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:migrate": "node src/migrate.js",
+    "test": "node --test",
+    "check": "node --check src/app.js && node --check src/auth.js && node --check src/config.js && node --check src/db.js && node --check src/repository.js && node --check src/roles.js && node --check src/server.js && node --check src/migrate.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
+  }
+}
