@@ -78,6 +78,15 @@ CREATE TABLE IF NOT EXISTS course_access (
   UNIQUE(course_id, student_id)
 );
 
+CREATE TABLE IF NOT EXISTS course_blocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_by INTEGER REFERENCES users(id),
+  blocked_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(course_id, student_id)
+);
+
 CREATE TABLE IF NOT EXISTS attempts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,

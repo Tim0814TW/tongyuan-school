@@ -11,7 +11,7 @@ function hash(pw) {
 
 console.log('🌱 清空舊資料...');
 db.exec(`
-  DELETE FROM answers; DELETE FROM attempts; DELETE FROM course_access;
+  DELETE FROM answers; DELETE FROM attempts; DELETE FROM course_access; DELETE FROM course_blocks;
   DELETE FROM questions; DELETE FROM courses; DELETE FROM users; DELETE FROM institutions;
 `);
 
@@ -81,9 +81,7 @@ db.prepare(`
   VALUES (?, 'photo', ?, ?, ?, 2, NULL)
 `).run(courseId, '如圖，拋物線頂點座標為？', JSON.stringify(['(2,-3)', '(-2,3)', '(3,-2)', '(0,5)']), 0);
 
-console.log('🌱 指派課程權限給學生...');
-db.prepare('INSERT INTO course_access (course_id, student_id) VALUES (?,?)').run(courseId, studentId);
-db.prepare('INSERT INTO course_access (course_id, student_id) VALUES (?,?)').run(courseId, studentId2);
+console.log('🌱 課程預設對全園學生開放...');
 
 console.log('✅ 種子資料建立完成！示範帳號如下：\n');
 console.table([

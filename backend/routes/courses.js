@@ -15,8 +15,9 @@ function courseForUser(courseId, user) {
   if (!course) return null;
   if (user.role === 'super') return course;
   if (user.role === 'student') {
-    const access = db.prepare('SELECT 1 FROM course_access WHERE course_id=? AND student_id=?').get(course.id, user.id);
-    return access ? course : null;
+    if (course.institution_id !== user.institution_id) return null;
+    const blocked = db.prepare('SELECT 1 FROM course_blocks WHERE course_id=? AND student_id=?').get(course.id, user.id);
+    return blocked ? null : course;
   }
   return course.institution_id === user.institution_id ? course : null;
 }
@@ -33,9 +34,12 @@ router.get('/', requireAuth, (req, res) => {
   } else if (req.user.role === 'student') {
     rows = db.prepare(`
       SELECT c.* FROM courses c
-      JOIN course_access ca ON ca.course_id = c.id
-      WHERE ca.student_id = ? ORDER BY c.created_at DESC
-    `).all(req.user.id);
+      WHERE c.institution_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM course_blocks cb WHERE cb.course_id = c.id AND cb.student_id = ?
+        )
+      ORDER BY c.created_at DESC
+    `).all(req.user.institution_id, req.user.id);
   }
 
   // 附加完成率/題數等摘要資訊
@@ -171,19 +175,26 @@ router.delete('/questions/:id', requireAuth, requireRole('teacher'), (req, res) 
   res.json({ ok: true });
 });
 
-// ---- 課程權限指派 ----
+// ---- 課程觀看權限（預設全園開放；個別學生可被關閉） ----
 
-// GET /api/courses/:id/access — 查詢已被指派此課程的學生ID列表
+// GET /api/courses/:id/access — 查詢目前可觀看此課程的學生 ID
 router.get('/:id/access', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
   const course = courseForUser(req.params.id, req.user);
   if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
     return res.status(404).json({ error: '找不到可管理的課程' });
   }
-  const rows = db.prepare('SELECT student_id FROM course_access WHERE course_id=?').all(req.params.id);
-  res.json({ student_ids: rows.map((r) => r.student_id) });
+  const rows = db.prepare(`
+    SELECT u.id FROM users u
+    WHERE u.institution_id=? AND u.role='student' AND u.status='active'
+      AND NOT EXISTS (
+        SELECT 1 FROM course_blocks cb WHERE cb.course_id=? AND cb.student_id=u.id
+      )
+    ORDER BY u.created_at DESC
+  `).all(course.institution_id, course.id);
+  res.json({ student_ids: rows.map((r) => r.id), default_open: true });
 });
 
-// POST /api/courses/:id/access — 指派學生可觀看此課程
+// POST /api/courses/:id/access — 恢復學生觀看權限
 router.post('/:id/access', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
   const course = courseForUser(req.params.id, req.user);
   if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
@@ -194,12 +205,11 @@ router.post('/:id/access', requireAuth, requireRole('teacher', 'institution'), (
     .get(student_id, course.institution_id);
   if (!student) return res.status(404).json({ error: '找不到該學生' });
 
-  db.prepare("INSERT OR IGNORE INTO course_access (course_id, student_id, granted_by, granted_at) VALUES (?,?,?,datetime('now'))")
-    .run(course.id, student_id, req.user.id);
+  db.prepare('DELETE FROM course_blocks WHERE course_id=? AND student_id=?').run(course.id, student_id);
   res.status(201).json({ ok: true });
 });
 
-// DELETE /api/courses/:id/access/:studentId
+// DELETE /api/courses/:id/access/:studentId — 關閉特定學生觀看權限
 router.delete('/:id/access/:studentId', requireAuth, requireRole('teacher', 'institution'), (req, res) => {
   const course = courseForUser(req.params.id, req.user);
   if (!course || (req.user.role === 'teacher' && course.teacher_id !== req.user.id)) {
@@ -208,7 +218,8 @@ router.delete('/:id/access/:studentId', requireAuth, requireRole('teacher', 'ins
   const student = db.prepare("SELECT id FROM users WHERE id=? AND institution_id=? AND role='student'")
     .get(req.params.studentId, course.institution_id);
   if (!student) return res.status(404).json({ error: '找不到該學生' });
-  db.prepare('DELETE FROM course_access WHERE course_id=? AND student_id=?').run(req.params.id, req.params.studentId);
+  db.prepare("INSERT OR IGNORE INTO course_blocks (course_id, student_id, blocked_by, blocked_at) VALUES (?,?,?,datetime('now'))")
+    .run(course.id, student.id, req.user.id);
   res.json({ ok: true });
 });
 
@@ -219,8 +230,7 @@ router.delete('/:id/access/:studentId', requireAuth, requireRole('teacher', 'ins
 router.post('/:id/submit', requireAuth, requireRole('student'), (req, res) => {
   const course = db.prepare('SELECT * FROM courses WHERE id=?').get(req.params.id);
   if (!course) return res.status(404).json({ error: '找不到課程' });
-  const access = db.prepare('SELECT 1 FROM course_access WHERE course_id=? AND student_id=?').get(course.id, req.user.id);
-  if (!access) return res.status(403).json({ error: '你尚未被指派此課程' });
+  if (!courseForUser(course.id, req.user)) return res.status(403).json({ error: '此課程已對你的帳號關閉' });
 
   const { answers } = req.body || {};
   if (!Array.isArray(answers) || answers.length === 0) {

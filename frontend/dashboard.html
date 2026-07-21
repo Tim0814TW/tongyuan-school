@@ -220,13 +220,13 @@ async function renderInstitution(app){
 
   app.innerHTML = `
     <div class="page-head">
-      <div><h1>園所管理主控台</h1><div class="sub">管理老師、全園課程與學生購課權限</div></div>
+      <div><h1>園所管理主控台</h1><div class="sub">管理老師、全園課程與個別學生觀看權限</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-ghost" onclick="openUserImportModal()">⇧ Excel 匯入師生</button>
         <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
       </div>
     </div>
-    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'courses',label:'課程管理'},{key:'students',label:'學生購課／權限'}], tab)}
+    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'courses',label:'課程管理'}], tab)}
     ${tab==='overview' ? `
       <div class="grid-stats">
         <div class="stat-card"><div class="label">老師數</div><div class="value">${teachers.length}</div></div>
@@ -235,40 +235,8 @@ async function renderInstitution(app){
       </div>` : ''}
     ${tab==='courses'
       ? `<div class="card"><div class="card-head"><h2>全園課程</h2><span class="badge badge-gray">${courses.length} 門</span></div><div class="card-body">${institutionCourseTable(courses)}</div></div>`
-      : tab==='students'
-        ? `<div class="card"><div class="card-head"><div><h2>學生購課與觀看權限</h2><small>確認學生已向園所購課後，再替學生開通課程。</small></div></div><div class="card-body">${institutionStudentAccessTable(students)}</div></div>`
-        : `<div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>`}
+      : `<div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>`}
   `;
-}
-function institutionStudentAccessTable(students){
-  if(!students.length) return '<div class="empty">目前尚無學生帳號，請先新增或使用 Excel 匯入學生。</div>';
-  return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
-  ${students.map(student=>`<tr>
-    <td><b>${esc(student.name)}</b><br><small>${esc(student.email)}</small></td>
-    <td>${esc(student.grade||'—')}<br><small>${esc(student.class_name||'—')}</small></td>
-    <td>${esc(student.guardian_name||'—')}<br><small>${esc(student.guardian_phone||'—')}</small></td>
-    <td>${student.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
-    <td><button class="btn btn-accent btn-sm" ${student.status!=='active'?'disabled':''} onclick="openInstitutionAccessModal(${student.id})">購課／開通課程</button></td>
-  </tr>`).join('')}</tbody></table>`;
-}
-async function openInstitutionAccessModal(studentId){
-  const student = (window.__students||[]).find(item=>item.id===studentId);
-  const courses = window.__institutionCourses||[];
-  if(!student) return toast('找不到學生','err');
-  openModal(`${student.name} 的購課與觀看權限`, `
-    <div style="background:var(--accent-soft);padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;line-height:1.7;">勾選已向園所購買的課程。儲存後，學生登入即可觀看；取消勾選則會關閉觀看權限。</div>
-    <div id="accessList">${courses.length ? courses.map(course=>`
-      <label style="display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;">
-        <input type="checkbox" data-course="${course.id}" class="access-check" style="margin-top:3px;">
-        <span><b>${esc(course.title)}</b><br><small>${esc(course.teacher_name||'未指定老師')} · ${esc(course.subject||'未分類')}</small></span>
-      </label>`).join('') : '<div class="empty">園所目前尚無可開通的課程。</div>'}</div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-top:16px;" ${courses.length?'':'disabled'} onclick="saveAccess(${student.id})">確認購課並儲存權限</button>
-  `);
-  for(const course of courses){
-    const { student_ids } = await api(`/api/courses/${course.id}/access`);
-    const checkbox = document.querySelector(`.access-check[data-course="${course.id}"]`);
-    if(checkbox) checkbox.checked = student_ids.includes(student.id);
-  }
 }
 function institutionCourseTable(rows){
   if(!rows.length) return '<div class="empty">目前尚未建立課程。老師建立課程後，園所可在這裡統一整理。</div>';
@@ -280,9 +248,40 @@ function institutionCourseTable(rows){
     <td>${esc(course.subject||'—')}</td>
     <td class="mono">${course.question_count||0} 題</td>
     <td><small>${esc((course.updated_at||course.created_at||'').replace('T',' '))}</small></td>
-    <td><button class="btn btn-ghost btn-sm" onclick="openInstitutionCourseModal(${course.id})">整理／編輯</button></td>
+    <td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" onclick="openInstitutionCourseModal(${course.id})">整理／編輯</button><button class="btn btn-accent btn-sm" onclick="openCourseVisibilityModal(${course.id})">學生觀看權限</button></div></td>
   </tr>`).join('')}
   </tbody></table>`;
+}
+async function openCourseVisibilityModal(courseId){
+  const course = (window.__institutionCourses||[]).find(item=>item.id===courseId);
+  const students = (window.__students||[]).filter(student=>student.status==='active');
+  if(!course) return toast('找不到課程','err');
+  openModal(`${course.title}｜學生觀看權限`, `
+    <div style="background:var(--accent-soft);padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;line-height:1.7;"><b>本課程預設對全園學生開放。</b><br>取消勾選某位學生，就只有該學生無法看到這門課；重新勾選即可恢復。</div>
+    <div id="accessList">${students.length ? students.map(student=>`
+      <label style="display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;">
+        <input type="checkbox" data-student="${student.id}" class="visibility-check" style="margin-top:3px;" checked>
+        <span><b>${esc(student.name)}</b><br><small>${esc(student.email)} · ${esc(student.grade||'未填年級')} ${esc(student.class_name||'')}</small></span>
+      </label>`).join('') : '<div class="empty">園所目前尚無啟用中的學生。</div>'}</div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-top:16px;" ${students.length?'':'disabled'} onclick="saveCourseVisibility(${course.id})">儲存本課程觀看權限</button>
+  `);
+  const { student_ids } = await api(`/api/courses/${course.id}/access`);
+  for(const checkbox of document.querySelectorAll('.visibility-check')){
+    checkbox.checked = student_ids.includes(Number(checkbox.dataset.student));
+  }
+}
+async function saveCourseVisibility(courseId){
+  const checks = document.querySelectorAll('.visibility-check');
+  const errors = [];
+  for(const checkbox of checks){
+    const studentId = checkbox.dataset.student;
+    try{
+      if(checkbox.checked) await api(`/api/courses/${courseId}/access`, { method:'POST', body:{ student_id:Number(studentId) } });
+      else await api(`/api/courses/${courseId}/access/${studentId}`, { method:'DELETE' });
+    }catch(error){ errors.push(error.message); }
+  }
+  if(errors.length) return toast(`有 ${errors.length} 位學生的權限未能更新，請重試`,'err');
+  toast('本課程觀看權限已更新'); closeModal();
 }
 function openInstitutionCourseModal(courseId){
   const course = (window.__institutionCourses||[]).find(item=>item.id===courseId);
@@ -441,8 +440,6 @@ async function renderTeacherCourseView(app, courseId){
 }
 async function teacherStudentsHTML(){
   const { users: students } = await api('/api/users?role=student');
-  const { courses } = await api('/api/courses');
-  window.__myCourses = courses.filter(course=>course.can_edit);
   window.__students = students;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
   return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
@@ -451,7 +448,7 @@ async function teacherStudentsHTML(){
     <td>${esc(s.grade||'—')}<br><small>${esc(s.class_name||'—')}</small></td>
     <td>${esc(s.guardian_name||'—')}<br><small>${esc(s.guardian_phone||'—')}</small></td>
     <td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="openStudentModal(${s.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="openAccessModal(${s.id}, '${esc(s.name)}')">課程權限</button></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openStudentModal(${s.id})">編輯</button></td>
   </tr>`).join('')}
   </tbody></table>`;
 }
@@ -475,34 +472,6 @@ async function submitStudentModal(){
     grade: val('f_grade'), class_name: val('f_class'), guardian_name: val('f_guardianName'), guardian_phone: val('f_guardianPhone') };
   try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'學生資料已更新':'學生帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
-}
-async function openAccessModal(studentId, studentName){
-  const courses = window.__myCourses || (await api('/api/courses')).courses;
-  openModal(`${studentName} 的課程權限`, `
-    <div id="accessList">${courses.map(c=>`
-      <label style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;">
-        <input type="checkbox" data-course="${c.id}" class="access-check"> ${esc(c.title)}
-      </label>`).join('')}</div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-top:16px;" onclick="saveAccess(${studentId})">儲存權限</button>
-  `);
-  for(const c of courses){
-    const { student_ids } = await api(`/api/courses/${c.id}/access`);
-    const cb = document.querySelector(`.access-check[data-course="${c.id}"]`);
-    if(cb) cb.checked = student_ids.includes(studentId);
-  }
-}
-async function saveAccess(studentId){
-  const checks = document.querySelectorAll('.access-check');
-  const errors = [];
-  for(const cb of checks){
-    const courseId = cb.dataset.course;
-    try{
-      if(cb.checked) await api(`/api/courses/${courseId}/access`, { method:'POST', body:{ student_id: studentId } });
-      else await api(`/api/courses/${courseId}/access/${studentId}`, { method:'DELETE' });
-    }catch(e){ errors.push(e.message); }
-  }
-  if(errors.length) return toast(`有 ${errors.length} 門課程未能更新，請重試`,'err');
-  toast('學生購課與觀看權限已更新'); closeModal(); render();
 }
 async function teacherGradesHTML(){
   const data = await api('/api/courses');
