@@ -76,7 +76,7 @@ router.post('/', requireAuth, requireRole('institution', 'teacher'), (req, res) 
     return res.status(400).json({ error });
   }
   const existing = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(email.trim());
-  if (existing) return res.status(409).json({ error: '此 Email 已被使用' });
+  if (existing) return res.status(409).json({ error: '此登入帳號已被使用' });
 
   const role = req.user.role === 'institution' ? 'teacher' : 'student';
   const hash = bcrypt.hashSync(password, 10);

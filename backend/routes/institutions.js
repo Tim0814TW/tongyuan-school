@@ -45,7 +45,7 @@ router.post('/', requireAuth, requireRole('super'), (req, res) => {
     return res.status(400).json({ error: '請填寫完整園所、主任與管理員帳號資訊' });
   }
   const existing = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(ownerEmail.trim());
-  if (existing) return res.status(409).json({ error: '此 Email 已被使用' });
+  if (existing) return res.status(409).json({ error: '此登入帳號已被使用' });
 
   const code = genCode(name);
   const tx = db.transaction(() => {

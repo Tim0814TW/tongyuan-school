@@ -189,7 +189,7 @@ function openInstModal(){
     <div class="field"><label>授權年份</label><input id="f_authorizationYear" placeholder="例如 2026"></div>
     <div class="field"><label>授權期限／時間</label><input id="f_authorizationPeriod" placeholder="例如 2026/07/01 - 2027/06/30"></div>
     <div class="field"><label>管理員姓名</label><input id="f_ownerName" placeholder="園所管理員姓名"></div>
-    <div class="field"><label>管理員登入帳號（Email）</label><input id="f_ownerEmail" type="email" placeholder="owner@example.com"></div>
+    <div class="field"><label>管理員登入帳號</label><input id="f_ownerEmail" type="text" placeholder="請設定登入帳號" autocomplete="username"></div>
     <div class="field"><label>管理員初始密碼</label><input id="f_ownerPassword" type="password" minlength="8" placeholder="至少 8 個字元"></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstModal()">建立園所</button>
   `);
@@ -369,7 +369,7 @@ function openTeacherModal(teacherId=null){
   openModal(teacher?'編輯老師資料':'新增老師', `
     <input id="f_userId" type="hidden" value="${teacher?.id||''}">
     <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(teacher?.name||'')}" placeholder="老師姓名"></div>
-    <div class="field"><label>登入帳號（Email）</label><input id="f_email" type="email" value="${escAttr(teacher?.email||'')}" placeholder="teacher@example.com"></div>
+    <div class="field"><label>登入帳號</label><input id="f_email" type="text" value="${escAttr(teacher?.email||'')}" placeholder="請設定登入帳號" autocomplete="username"></div>
     <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" value="${escAttr(teacher?.phone||'')}" placeholder="0912-345-678"></div>
     <div class="field"><label>${teacher?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${teacher?'不修改請留空':'至少 8 個字元'}"></div>
     <div class="field"><label>負責科目</label><input id="f_subject" value="${escAttr(teacher?.subject||'')}" placeholder="例如 國中數學"></div>
@@ -457,7 +457,7 @@ function openStudentModal(studentId=null){
   openModal(student?'編輯學生資料':'新增學生', `
     <input id="f_userId" type="hidden" value="${student?.id||''}">
     <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(student?.name||'')}" placeholder="學生姓名"></div>
-    <div class="field"><label>帳號（Email 或學號）</label><input id="f_email" value="${escAttr(student?.email||'')}" placeholder="A1042503 或 email"></div>
+    <div class="field"><label>登入帳號</label><input id="f_email" value="${escAttr(student?.email||'')}" placeholder="請設定登入帳號" autocomplete="username"></div>
     <div class="field"><label>就讀年級</label><input id="f_grade" value="${escAttr(student?.grade||'')}" placeholder="例如 七年級"></div>
     <div class="field"><label>班級</label><input id="f_class" value="${escAttr(student?.class_name||'')}" placeholder="例如 數學A班"></div>
     <div class="field"><label>家長姓名</label><input id="f_guardianName" value="${escAttr(student?.guardian_name||'')}" placeholder="家長或監護人姓名"></div>
