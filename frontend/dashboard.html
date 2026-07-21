@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>學印 StudySeal ｜ 主控台</title>
+<title>童願學院 ｜ 主控台</title>
 <link rel="icon" href="assets/logo-mark.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -80,7 +80,7 @@
 <header class="top">
   <div class="brand">
     <img src="assets/logo-mark.png" alt="">
-    <div class="word"><b>學印 StudySeal</b><span>最酷的網路學院</span></div>
+    <div class="word"><b>童願學院</b><span>最酷的網路學院</span></div>
   </div>
   <div class="user-box" id="userBox"></div>
 </header>
@@ -212,7 +212,9 @@ async function submitInstModal(){
 async function renderInstitution(app){
   const tab = state.tab.institution || 'overview';
   const { users: teachers } = await api('/api/users?role=teacher');
+  const { courses } = await api('/api/courses');
   window.__teachers = teachers;
+  window.__institutionCourses = courses;
 
   app.innerHTML = `
     <div class="page-head">
@@ -222,14 +224,55 @@ async function renderInstitution(app){
         <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
       </div>
     </div>
-    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'}], tab)}
+    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'courses',label:'課程管理'}], tab)}
     ${tab==='overview' ? `
       <div class="grid-stats">
         <div class="stat-card"><div class="label">老師數</div><div class="value">${teachers.length}</div></div>
         <div class="stat-card"><div class="label">課程總數</div><div class="value">${teachers.reduce((s,t)=>s+t.course_count,0)}</div></div>
       </div>` : ''}
-    <div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>
+    ${tab==='courses'
+      ? `<div class="card"><div class="card-head"><h2>全園課程</h2><span class="badge badge-gray">${courses.length} 門</span></div><div class="card-body">${institutionCourseTable(courses)}</div></div>`
+      : `<div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>`}
   `;
+}
+function institutionCourseTable(rows){
+  if(!rows.length) return '<div class="empty">目前尚未建立課程。老師建立課程後，園所可在這裡統一整理。</div>';
+  const grouped = [...rows].sort((a,b)=>(a.teacher_name||'').localeCompare(b.teacher_name||'','zh-Hant') || (a.title||'').localeCompare(b.title||'','zh-Hant'));
+  return `<table><thead><tr><th>課程</th><th>授課老師</th><th>科目</th><th>題目</th><th>最後更新</th><th></th></tr></thead><tbody>
+  ${grouped.map(course=>`<tr>
+    <td><b>${esc(course.title)}</b><br><small>${esc(course.description||'尚未填寫課程說明')}</small></td>
+    <td>${esc(course.teacher_name||'未指定')}<br><small>${esc(course.teacher_email||'')}</small></td>
+    <td>${esc(course.subject||'—')}</td>
+    <td class="mono">${course.question_count||0} 題</td>
+    <td><small>${esc((course.updated_at||course.created_at||'').replace('T',' '))}</small></td>
+    <td><button class="btn btn-ghost btn-sm" onclick="openInstitutionCourseModal(${course.id})">整理／編輯</button></td>
+  </tr>`).join('')}
+  </tbody></table>`;
+}
+function openInstitutionCourseModal(courseId){
+  const course = (window.__institutionCourses||[]).find(item=>item.id===courseId);
+  if(!course) return toast('找不到課程','err');
+  openModal('整理課程', `
+    <input id="f_courseId" type="hidden" value="${course.id}">
+    <div class="field"><label>課程名稱</label><input id="f_courseTitle" value="${escAttr(course.title||'')}"></div>
+    <div class="field"><label>授課老師</label><select id="f_courseTeacher">${(window.__teachers||[]).map(teacher=>`<option value="${teacher.id}" ${teacher.id===course.teacher_id?'selected':''}>${esc(teacher.name)}（${esc(teacher.email)}）</option>`).join('')}</select></div>
+    <div class="field"><label>科目</label><input id="f_courseSubject" value="${escAttr(course.subject||'')}"></div>
+    <div class="field"><label>YouTube 課程網址</label><input id="f_courseYoutube" value="${escAttr(course.youtube_url||'')}"></div>
+    <div class="field"><label>課程說明</label><textarea id="f_courseDescription" rows="4">${esc(course.description||'')}</textarea></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstitutionCourse()">儲存課程整理</button>
+  `);
+}
+async function submitInstitutionCourse(){
+  const courseId = val('f_courseId');
+  const body = {
+    title: val('f_courseTitle'), teacher_id: Number(val('f_courseTeacher')),
+    subject: val('f_courseSubject'), youtube_url: val('f_courseYoutube'), description: val('f_courseDescription'),
+  };
+  if(!body.title) return toast('請輸入課程名稱','err');
+  try{
+    await api(`/api/courses/${courseId}`, { method:'PATCH', body });
+    toast('課程已整理完成'); closeModal(); render();
+  }catch(err){ toast(err.message,'err'); }
 }
 function openUserImportModal(){
   openModal('Excel 匯入老師與學生', `

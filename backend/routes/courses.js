@@ -30,11 +30,18 @@ router.get('/', requireAuth, (req, res) => {
   // 附加完成率/題數等摘要資訊
   const withMeta = rows.map((c) => {
     const qCount = db.prepare('SELECT COUNT(*) n FROM questions WHERE course_id=?').get(c.id).n;
+    const teacher = db.prepare('SELECT name,email FROM users WHERE id=?').get(c.teacher_id);
     let myAttempt = null;
     if (req.user.role === 'student') {
       myAttempt = db.prepare('SELECT * FROM attempts WHERE course_id=? AND student_id=? ORDER BY submitted_at DESC LIMIT 1').get(c.id, req.user.id);
     }
-    return { ...c, question_count: qCount, my_attempt: myAttempt || null };
+    return {
+      ...c,
+      teacher_name: teacher?.name || '',
+      teacher_email: teacher?.email || '',
+      question_count: qCount,
+      my_attempt: myAttempt || null,
+    };
   });
   res.json({ courses: withMeta });
 });
@@ -82,14 +89,26 @@ router.patch('/:id', requireAuth, requireRole('teacher', 'institution'), (req, r
   if (req.user.role === 'teacher' && course.teacher_id !== req.user.id) {
     return res.status(403).json({ error: '只能編輯自己的課程' });
   }
-  const { title, subject, youtube_url, description } = req.body || {};
+  if (req.user.role === 'institution' && course.institution_id !== req.user.institution_id) {
+    return res.status(403).json({ error: '只能整理自己園所的課程' });
+  }
+  const { title, subject, youtube_url, description, teacher_id } = req.body || {};
+  let nextTeacherId = null;
+  if (req.user.role === 'institution' && teacher_id != null) {
+    const teacher = db.prepare(
+      "SELECT id FROM users WHERE id=? AND institution_id=? AND role='teacher' AND status='active'",
+    ).get(teacher_id, req.user.institution_id);
+    if (!teacher) return res.status(400).json({ error: '請選擇此園所仍啟用的老師' });
+    nextTeacherId = teacher.id;
+  }
   db.prepare(`
     UPDATE courses SET
       title = COALESCE(?, title), subject = COALESCE(?, subject),
       youtube_url = COALESCE(?, youtube_url), description = COALESCE(?, description),
+      teacher_id = COALESCE(?, teacher_id),
       updated_at = datetime('now')
     WHERE id = ?
-  `).run(title || null, subject || null, youtube_url || null, description || null, req.params.id);
+  `).run(title || null, subject ?? null, youtube_url ?? null, description ?? null, nextTeacherId, req.params.id);
   res.json({ course: db.prepare('SELECT * FROM courses WHERE id=?').get(req.params.id) });
 });
 
