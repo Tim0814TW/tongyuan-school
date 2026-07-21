@@ -51,8 +51,12 @@ export function createApp({ config, repository, authService }) {
     const identifier = String(req.body?.identifier || "").trim();
     const password = String(req.body?.password || "");
     const organizationCode = String(req.body?.organizationCode || "").trim();
+    const targetSystem = String(req.body?.targetSystem || "").trim();
     if (!identifier || !password) return res.status(400).json({ error: "identifier_and_password_required" });
-    const result = await authService.login({ identifier, password, organizationCode });
+    if (targetSystem && !["school", "stock"].includes(targetSystem)) {
+      return res.status(400).json({ error: "invalid_target_system" });
+    }
+    const result = await authService.login({ identifier, password, organizationCode, targetSystem });
     if (!result) return res.status(401).json({ error: "invalid_credentials" });
     res.json(result);
   });

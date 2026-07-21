@@ -33,7 +33,7 @@ export function createAuthService({ repository, jwtSecret, jwtExpiresIn = "8h", 
   return {
     publicUser,
 
-    async login({ identifier, password, organizationCode = "" }) {
+    async login({ identifier, password, organizationCode = "", targetSystem = "" }) {
       const user = await repository.findUserForLogin(identifier, organizationCode);
       const valid = user && user.status === "active" &&
         (user.role === "admin" || user.organization_status === "active") &&
@@ -60,7 +60,18 @@ export function createAuthService({ repository, jwtSecret, jwtExpiresIn = "8h", 
         jwtSecret,
         { expiresIn: jwtExpiresIn, issuer: "tongyuan-identity", audience: ["tongyuan-school", "tongyuan-stock"] },
       );
-      return { token, user: publicUser(user) };
+      const legacy = targetSystem
+        ? await repository.findLegacyIdentity(user.id, targetSystem)
+        : null;
+      return {
+        token,
+        user: publicUser(user),
+        legacy: legacy ? {
+          sourceSystem: legacy.source_system,
+          userId: legacy.legacy_user_id,
+          organizationId: legacy.legacy_organization_id,
+        } : null,
+      };
     },
 
     verifyToken(token) {

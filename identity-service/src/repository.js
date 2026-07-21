@@ -34,6 +34,16 @@ export function createIdentityRepository(pool) {
       );
     },
 
+    async findLegacyIdentity(userId, sourceSystem) {
+      const { rows } = await pool.query(
+        `SELECT source_system, legacy_user_id, legacy_organization_id
+         FROM legacy_identities
+         WHERE user_id = $1 AND source_system = $2`,
+        [userId, sourceSystem],
+      );
+      return rows[0] || null;
+    },
+
     async findActiveSession(sessionId) {
       const { rows } = await pool.query(
         `SELECT sessions.id AS session_id, sessions.token_version AS session_token_version,

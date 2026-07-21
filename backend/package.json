@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "check": "node --check server.js && node --check routes/auth.js && node --check services/identity.js && node --check middleware/auth.js",
+    "test": "node --test"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",

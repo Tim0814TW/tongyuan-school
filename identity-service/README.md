@@ -36,6 +36,9 @@ API：
 {
   "identifier": "teacher-wang",
   "password": "使用者密碼",
-  "organizationCode": "TEST2026"
+  "organizationCode": "TEST2026",
+  "targetSystem": "school"
 }
 ```
+
+`targetSystem` 可為 `school` 或 `stock`。回應會在帳號搬移後附上該系統的 `legacy.userId`，供既有網站安全連結原本的個人資料。

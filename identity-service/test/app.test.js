@@ -34,6 +34,9 @@ test("health, login, me, and logout form a complete revocable flow", async (cont
       return identifier === user.username && organizationCode === user.organization_code ? user : null;
     },
     async createSession(value) { session = value; },
+    async findLegacyIdentity() {
+      return { source_system: "stock", legacy_user_id: "42", legacy_organization_id: "7" };
+    },
     async findActiveSession(sessionId) {
       if (!session || session.id !== sessionId) return null;
       return { ...user, session_token_version: session.tokenVersion };
@@ -69,11 +72,13 @@ test("health, login, me, and logout form a complete revocable flow", async (cont
       identifier: "teacher-wang",
       password: "SafePassword123!",
       organizationCode: "TEST2026",
+      targetSystem: "stock",
     }),
   });
   assert.equal(loginResponse.status, 200);
   const login = await loginResponse.json();
   assert.equal(login.user.role, "teacher");
+  assert.equal(login.legacy.userId, "42");
   assert.ok(login.token);
 
   const meResponse = await fetch(`${baseUrl}/api/auth/me`, {

@@ -35,12 +35,18 @@ test("login issues a shared token and creates a revocable session", async () => 
       return user;
     },
     async createSession(session) { sessions.push(session); },
+    async findLegacyIdentity(userId, sourceSystem) {
+      assert.equal(userId, 42);
+      assert.equal(sourceSystem, "school");
+      return { source_system: "school", legacy_user_id: "12", legacy_organization_id: "7" };
+    },
   };
   const service = createAuthService({ repository, jwtSecret: "test-secret-that-is-long-enough-123", jwtExpiresIn: "1h" });
-  const result = await service.login({ identifier: "teacher-wang", password: "SafePassword123!", organizationCode: "TEST2026" });
+  const result = await service.login({ identifier: "teacher-wang", password: "SafePassword123!", organizationCode: "TEST2026", targetSystem: "school" });
   assert.equal(result.user.role, "teacher");
   assert.equal(result.user.organizationId, "7");
   assert.equal(sessions.length, 1);
+  assert.deepEqual(result.legacy, { sourceSystem: "school", userId: "12", organizationId: "7" });
   const payload = service.verifyToken(result.token);
   assert.equal(payload.sub, "42");
   assert.equal(payload.organizationId, "7");
