@@ -17,8 +17,9 @@ test('identity client sends school target and returns linked session', async () 
       return { ok: true, json: async () => ({ token: 'shared', user: { id: '1' }, legacy: { userId: '9' } }) };
     },
   });
-  const result = await client.authenticate({ identifier: 'teacher', password: 'secret', organizationCode: 'A1' });
+  const result = await client.authenticate({ identifier: 'teacher', password: 'secret' });
   assert.equal(requestBody.targetSystem, 'school');
+  assert.equal(requestBody.organizationCode, undefined);
   assert.equal(result.legacy.userId, '9');
 });
 

@@ -119,13 +119,6 @@
       <div class="form-error" id="formError"></div>
 
       <form id="loginForm">
-        <div class="field" id="fieldOrgCode" style="display:none;">
-          <label>園所代碼</label>
-          <div class="input-wrap">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#545454" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg>
-            <input type="text" id="orgCode" placeholder="例如 BOZI2024">
-          </div>
-        </div>
         <div class="field">
           <label id="accountLabel">帳號</label>
           <div class="input-wrap">
@@ -156,10 +149,10 @@
 <script src="assets/api.js"></script>
 <script>
 const ROLES = {
-  super:       { name:'最高權限', desc:'管理所有<b>園所帳號</b>與系統層級權限設定。', accent:'#48C0F0', accentSoft:'#E4F6FD', label:'系統帳號', showOrg:false, btn:'最高權限主控台' },
-  institution: { name:'園所',    desc:'建立<b>老師帳號</b>，管理園所課程與整體教學成效。', accent:'#846CA8', accentSoft:'#EEE9F5', label:'園所管理員帳號', showOrg:true, btn:'園所主控台' },
-  teacher:     { name:'老師',    desc:'建立<b>學生帳號</b>，編輯課程、題目與批閱成績。', accent:'#E44878', accentSoft:'#FCE7ED', label:'老師帳號', showOrg:true, btn:'老師主控台' },
-  student:     { name:'學生',    desc:'觀看課程影片、完成測驗，累積你的學習成績單。', accent:'#F0C03C', accentSoft:'#FBF1D8', label:'學生帳號', showOrg:true, btn:'我的學習主頁' },
+  super:       { name:'最高權限', desc:'管理所有<b>園所帳號</b>與系統層級權限設定。', accent:'#48C0F0', accentSoft:'#E4F6FD', label:'系統帳號', btn:'最高權限主控台' },
+  institution: { name:'園所',    desc:'建立<b>老師帳號</b>，管理園所課程與整體教學成效。', accent:'#846CA8', accentSoft:'#EEE9F5', label:'園所管理員帳號', btn:'園所主控台' },
+  teacher:     { name:'老師',    desc:'建立<b>學生帳號</b>，編輯課程、題目與批閱成績。', accent:'#E44878', accentSoft:'#FCE7ED', label:'老師帳號', btn:'老師主控台' },
+  student:     { name:'學生',    desc:'觀看課程影片、完成測驗，累積你的學習成績單。', accent:'#F0C03C', accentSoft:'#FBF1D8', label:'學生帳號', btn:'我的學習主頁' },
 };
 let currentRole = 'super';
 
@@ -171,7 +164,6 @@ function setRole(key){
   document.getElementById('roleDesc').style.background = r.accentSoft;
   document.getElementById('accountLabel').textContent = r.label;
   document.getElementById('btnRoleLabel').textContent = r.btn;
-  document.getElementById('fieldOrgCode').style.display = r.showOrg ? 'block' : 'none';
   document.documentElement.style.setProperty('--accent', r.accent);
   document.documentElement.style.setProperty('--accent-soft', r.accentSoft);
   document.getElementById('formError').style.display = 'none';
@@ -188,7 +180,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
 
   const email = document.getElementById('account').value.trim();
   const password = document.getElementById('password').value;
-  const orgCode = document.getElementById('orgCode').value.trim();
 
   if(!email || !password){
     errEl.textContent = '請輸入帳號與密碼';
@@ -202,7 +193,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   btn.innerHTML = '登入中...';
 
   try{
-    const data = await api('/api/auth/login', { method:'POST', body:{ email, password, orgCode: orgCode || undefined } });
+    const data = await api('/api/auth/login', { method:'POST', body:{ email, password } });
     if(data.user.role !== currentRole){
       throw new Error('此帳號的身份與所選分頁不符，請確認角色是否選對');
     }

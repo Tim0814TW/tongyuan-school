@@ -37,31 +37,31 @@ function publicLocalUser(user) {
   };
 }
 
-function validateLocalAccess(user, orgCode, shared) {
+function validateLocalAccess(user, shared) {
   if (!user || user.status === 'disabled') return { status: 401, error: '帳號尚未連結線上學院或已停用' };
   const expectedRoles = { admin: 'super', school: 'institution', teacher: 'teacher', student: 'student' };
   if (shared && expectedRoles[shared.user?.role] !== user.role) {
     return { status: 409, error: '共用帳號與線上學院身份不一致，請聯繫系統管理員' };
   }
-  if (orgCode && user.role !== 'super') {
+  if (user.role !== 'super') {
     const inst = db.prepare('SELECT * FROM institutions WHERE id = ?').get(user.institution_id);
-    if (!inst || inst.code.toUpperCase() !== String(orgCode).toUpperCase()) return { status: 401, error: '園所代碼不正確' };
+    if (!inst) return { status: 401, error: '帳號尚未連結園所' };
     if (inst.status === 'disabled') return { status: 403, error: '此園所帳號已被停用，請聯繫系統管理員' };
   }
   return null;
 }
 
 // POST /api/auth/login
-// body: { email, password, orgCode? }
+// body: { email, password }
 router.post('/login', async (req, res, next) => {
-  const { email, password, orgCode } = req.body || {};
+  const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: '請輸入帳號與密碼' });
   }
 
   let shared = null;
   try {
-    shared = await identity.authenticate({ identifier: email.trim(), password, organizationCode: orgCode });
+    shared = await identity.authenticate({ identifier: email.trim(), password });
   } catch (error) {
     if (!(error instanceof IdentityServiceError)) return next(error);
     if (!(identity.mode === 'prefer' && error.unavailable)) {
@@ -78,7 +78,7 @@ router.post('/login', async (req, res, next) => {
     return res.status(401).json({ error: '帳號或密碼錯誤' });
   }
 
-  const accessError = validateLocalAccess(user, orgCode, shared);
+  const accessError = validateLocalAccess(user, shared);
   if (accessError) return res.status(accessError.status).json({ error: accessError.error });
 
   const token = signToken(user);

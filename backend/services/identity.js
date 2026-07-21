@@ -12,7 +12,7 @@ function createIdentityClient({ env = process.env, fetchImpl = global.fetch } = 
   const baseUrl = String(env.IDENTITY_SERVICE_URL || '').replace(/\/$/, '');
   const enabled = ['prefer', 'required'].includes(mode);
 
-  async function authenticate({ identifier, password, organizationCode }) {
+  async function authenticate({ identifier, password }) {
     if (!enabled) return null;
     if (!baseUrl) {
       throw new IdentityServiceError('identity_service_url_required', { unavailable: true });
@@ -23,7 +23,7 @@ function createIdentityClient({ env = process.env, fetchImpl = global.fetch } = 
       const response = await fetchImpl(`${baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ identifier, password, organizationCode, targetSystem: 'school' }),
+        body: JSON.stringify({ identifier, password, targetSystem: 'school' }),
         signal: controller.signal,
       });
       const body = await response.json().catch(() => ({}));
