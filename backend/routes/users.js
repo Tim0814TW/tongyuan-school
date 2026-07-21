@@ -3,10 +3,26 @@
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { parseUserImport, validateUserImport, applyDefaultTeacher } = require('../services/user-import');
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, callback) {
+    callback(null, /\.xlsx$/i.test(file.originalname));
+  },
+});
+function uploadSpreadsheet(req, res, next) {
+  upload.single('file')(req, res, (error) => {
+    if (error?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Excel 檔案不可超過 2MB' });
+    if (error) return next(error);
+    next();
+  });
+}
 
 // GET /api/users?role=teacher|student
 router.get('/', requireAuth, (req, res) => {
@@ -77,6 +93,59 @@ router.post('/', requireAuth, requireRole('institution', 'teacher'), (req, res) 
 
   const user = db.prepare('SELECT id,name,email,phone,role,subject,grade,class_name,guardian_name,guardian_phone,status,created_at FROM users WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ user });
+});
+
+router.post('/import', requireAuth, requireRole('institution'), uploadSpreadsheet, async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: '請上傳 .xlsx Excel 檔案' });
+    const parsed = applyDefaultTeacher(
+      await parseUserImport(req.file.buffer),
+      req.body?.defaultTeacherUsername,
+    );
+    const existingAccounts = db.prepare('SELECT email FROM users').all().map((row) => row.email);
+    const existingTeachers = db.prepare(
+      "SELECT email FROM users WHERE institution_id = ? AND role = 'teacher'",
+    ).all(req.user.institution_id).map((row) => row.email);
+    const validation = validateUserImport(parsed, { existingAccounts, existingTeachers });
+    if (!validation.valid) return res.status(422).json(validation);
+    if (String(req.body?.dryRun) === 'true') return res.json(validation);
+
+    const imported = db.transaction(() => {
+      const teacherIds = new Map(
+        db.prepare("SELECT id,email FROM users WHERE institution_id = ? AND role = 'teacher'")
+          .all(req.user.institution_id)
+          .map((row) => [row.email.toLowerCase(), row.id]),
+      );
+      const insertUser = db.prepare(`
+        INSERT INTO users (
+          institution_id, name, email, phone, password_hash, role, subject,
+          grade, class_name, guardian_name, guardian_phone, created_by, status
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `);
+      for (const row of parsed.teachers) {
+        const info = insertUser.run(
+          req.user.institution_id, row.name, row.username, row.phone, bcrypt.hashSync(row.password, 10),
+          'teacher', row.subject || null, null, row.className || null, null, null, req.user.id, row.status,
+        );
+        teacherIds.set(row.username.toLowerCase(), Number(info.lastInsertRowid));
+      }
+      for (const row of parsed.students) {
+        insertUser.run(
+          req.user.institution_id, row.name, row.username, '', bcrypt.hashSync(row.password, 10),
+          'student', null, row.grade || null, row.className, row.guardianName || null,
+          row.guardianPhone || null, teacherIds.get(row.teacherUsername.toLowerCase()), row.status,
+        );
+      }
+      return validation.summary;
+    })();
+
+    res.status(201).json({ valid: true, imported, errors: [] });
+  } catch (error) {
+    if (/invalid_xlsx|zip|central directory|worksheets/i.test(String(error?.message || ''))) {
+      return res.status(400).json({ error: 'Excel 檔案格式不正確或已損壞' });
+    }
+    next(error);
+  }
 });
 
 // PATCH /api/users/:id — 停用/啟用帳號、編輯資料

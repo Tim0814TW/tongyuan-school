@@ -92,7 +92,7 @@
 <div id="modalRoot"></div>
 
 <script src="assets/config.js"></script>
-<script src="assets/api.js"></script>
+<script src="assets/api.js?v=20260721-1"></script>
 <script>
 if (!requireLogin()) { throw new Error('redirect'); }
 const CURRENT = getUser();
@@ -217,7 +217,10 @@ async function renderInstitution(app){
   app.innerHTML = `
     <div class="page-head">
       <div><h1>園所管理主控台</h1><div class="sub">管理老師帳號與課程權限</div></div>
-      <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="openUserImportModal()">⇧ Excel 匯入師生</button>
+        <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
+      </div>
     </div>
     ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'}], tab)}
     ${tab==='overview' ? `
@@ -227,6 +230,44 @@ async function renderInstitution(app){
       </div>` : ''}
     <div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>
   `;
+}
+function openUserImportModal(){
+  openModal('Excel 匯入老師與學生', `
+    <div style="background:var(--accent-soft);padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;line-height:1.7;">
+      先下載範本，將股票系統的老師及學生資料貼入。系統會先檢查重複帳號、必填欄位、密碼長度及老師對應，確認無誤後才會整批建立。
+    </div>
+    <a class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:14px;" href="templates/studyseal-user-import-template.xlsx" download="童願網校師生匯入範本.xlsx">↓ 下載 Excel 範本</a>
+    <div class="field"><label>股票系統學生範本的預設負責老師（選填）</label>
+      <select id="f_defaultTeacher"><option value="">依 Excel 的「指定老師帳號」欄位</option>${(window.__teachers||[]).map(teacher=>`<option value="${escAttr(teacher.email)}">${esc(teacher.name)}（${esc(teacher.email)}）</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>選擇填好的 Excel</label><input id="f_importFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+    <div id="importResult" style="font-size:13px;line-height:1.65;margin:12px 0;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-ghost" style="justify-content:center;" onclick="runUserImport(true)">先檢查資料</button>
+      <button class="btn btn-accent" style="justify-content:center;" onclick="runUserImport(false)">確認匯入</button>
+    </div>
+  `);
+}
+async function runUserImport(dryRun){
+  const file = document.getElementById('f_importFile')?.files?.[0];
+  const result = document.getElementById('importResult');
+  if(!file){ result.innerHTML = '<span style="color:#C74662;">請先選擇 .xlsx 檔案</span>'; return; }
+  result.textContent = dryRun ? '正在檢查資料…' : '正在匯入資料…';
+  const form = new FormData();
+  form.append('file', file);
+  form.append('dryRun', String(dryRun));
+  form.append('defaultTeacherUsername', val('f_defaultTeacher'));
+  try{
+    const data = await uploadApi('/api/users/import', form);
+    const summary = data.summary || data.imported;
+    result.innerHTML = `<span style="color:#2F8F76;font-weight:700;">${dryRun?'檢查通過':'匯入完成'}</span><br>老師 ${summary.teachers} 筆、學生 ${summary.students} 筆，共 ${summary.total} 筆。`;
+    if(!dryRun){ toast('師生資料匯入完成'); setTimeout(()=>{ closeModal(); render(); }, 900); }
+  }catch(err){
+    const errors = err.data?.errors || [];
+    result.innerHTML = errors.length
+      ? `<span style="color:#C74662;font-weight:700;">發現 ${errors.length} 個問題，尚未寫入資料：</span><ul style="padding-left:18px;margin-top:6px;">${errors.slice(0,12).map(item=>`<li>${esc(item.sheet||'檔案')} ${item.row?`第 ${item.row} 列`:''}：${esc(item.message)}</li>`).join('')}</ul>${errors.length>12?`<small>另有 ${errors.length-12} 個問題</small>`:''}`
+      : `<span style="color:#C74662;">${esc(err.message)}</span>`;
+  }
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';

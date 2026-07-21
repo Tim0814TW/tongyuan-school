@@ -39,6 +39,22 @@ async function api(path, { method='GET', body=null } = {}){
   return data;
 }
 
+async function uploadApi(path, formData){
+  const headers = {};
+  const token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API_BASE + path, { method:'POST', headers, body:formData });
+  let data = null;
+  try { data = await res.json(); } catch(e){ /* no body */ }
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `發生錯誤 (${res.status})`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 function requireLogin(){
   if (!getToken() || !getUser()){
     window.location.href = 'login.html';
