@@ -33,7 +33,7 @@ router.get('/', requireAuth, (req, res) => {
     const instId = req.user.role === 'super' ? req.query.institution_id : req.user.institution_id;
     if (!instId) return res.status(400).json({ error: '缺少園所資訊' });
     const rows = db.prepare(`
-      SELECT u.id,u.name,u.email,u.phone,u.subject,u.class_name,u.status,u.created_at,
+      SELECT u.id,u.name,u.email,u.phone,u.status,u.created_at,
         (SELECT COUNT(*) FROM courses WHERE teacher_id=u.id) AS course_count
       FROM users u WHERE u.institution_id = ? AND u.role='teacher' ORDER BY u.created_at DESC
     `).all(instId);
@@ -45,12 +45,12 @@ router.get('/', requireAuth, (req, res) => {
     let rows;
     if (req.user.role === 'teacher') {
       rows = db.prepare(`
-        SELECT id,name,email,grade,class_name,guardian_name,guardian_phone,status,created_at FROM users
+        SELECT id,name,email,grade,class_id,class_name,guardian_name,guardian_phone,status,created_at FROM users
         WHERE role='student' AND created_by = ? ORDER BY created_at DESC
       `).all(req.user.id);
     } else if (req.user.role === 'institution') {
       rows = db.prepare(`
-        SELECT id,name,email,grade,class_name,guardian_name,guardian_phone,status,created_at FROM users
+        SELECT id,name,email,grade,class_id,class_name,guardian_name,guardian_phone,status,created_at FROM users
         WHERE role='student' AND institution_id = ? ORDER BY created_at DESC
       `).all(req.user.institution_id);
     } else {
@@ -63,12 +63,12 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // POST /api/users — 建立老師（園所限定）或學生（老師限定）
-// body teacher: { name, email, phone, password, subject, class_name }
-// body student: { name, email, password, grade, class_name, guardian_name, guardian_phone }
+// body teacher: { name, email, phone, password }
+// body student: { name, email, password, grade, class_id, guardian_name, guardian_phone }
 router.post('/', requireAuth, requireRole('institution', 'teacher'), (req, res) => {
-  const { name, email, phone, password, subject, grade, class_name, guardian_name, guardian_phone } = req.body || {};
+  const { name, email, phone, password, grade, class_id, guardian_name, guardian_phone } = req.body || {};
   const missingTeacherFields = req.user.role === 'institution' && !phone;
-  const missingStudentFields = req.user.role === 'teacher' && (!grade || !class_name || !guardian_name || !guardian_phone);
+  const missingStudentFields = req.user.role === 'teacher' && (!grade || !class_id || !guardian_name || !guardian_phone);
   if (!name || !email || !password || missingTeacherFields || missingStudentFields) {
     const error = req.user.role === 'institution'
       ? '請填寫老師姓名、登入帳號、電話與密碼'
@@ -79,19 +79,24 @@ router.post('/', requireAuth, requireRole('institution', 'teacher'), (req, res) 
   if (existing) return res.status(409).json({ error: '此登入帳號已被使用' });
 
   const role = req.user.role === 'institution' ? 'teacher' : 'student';
+  const selectedClass = role === 'student'
+    ? db.prepare("SELECT * FROM classes WHERE id=? AND institution_id=? AND status='active'").get(class_id, req.user.institution_id)
+    : null;
+  if (role === 'student' && !selectedClass) return res.status(400).json({ error: '請選擇有效班級' });
   const hash = bcrypt.hashSync(password, 10);
 
   const info = db.prepare(`
     INSERT INTO users (
-      institution_id, name, email, phone, password_hash, role, subject,
-      grade, class_name, guardian_name, guardian_phone, created_by
+      institution_id, name, email, phone, password_hash, role,
+      grade, class_id, class_name, guardian_name, guardian_phone, created_by
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     req.user.institution_id, name.trim(), email.trim(), String(phone || '').trim(), hash, role,
-    subject || null, grade || null, class_name || null, guardian_name || null, guardian_phone || null, req.user.id
+    grade || null, selectedClass?.id || null, selectedClass?.name || null,
+    guardian_name || null, guardian_phone || null, req.user.id
   );
 
-  const user = db.prepare('SELECT id,name,email,phone,role,subject,grade,class_name,guardian_name,guardian_phone,status,created_at FROM users WHERE id = ?').get(info.lastInsertRowid);
+  const user = db.prepare('SELECT id,name,email,phone,role,grade,class_id,class_name,guardian_name,guardian_phone,status,created_at FROM users WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ user });
 });
 
@@ -116,23 +121,31 @@ router.post('/import', requireAuth, requireRole('institution'), uploadSpreadshee
           .all(req.user.institution_id)
           .map((row) => [row.email.toLowerCase(), row.id]),
       );
+      const findClass = db.prepare('SELECT id FROM classes WHERE institution_id=? AND name=? COLLATE NOCASE');
+      const insertClass = db.prepare('INSERT INTO classes (institution_id,name,grade) VALUES (?,?,?)');
+      const classIdFor = (className, grade) => {
+        if (!className) return null;
+        const existingClass = findClass.get(req.user.institution_id, className);
+        if (existingClass) return existingClass.id;
+        return Number(insertClass.run(req.user.institution_id, className, grade || '').lastInsertRowid);
+      };
       const insertUser = db.prepare(`
         INSERT INTO users (
           institution_id, name, email, phone, password_hash, role, subject,
-          grade, class_name, guardian_name, guardian_phone, created_by, status
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+          grade, class_id, class_name, guardian_name, guardian_phone, created_by, status
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const row of parsed.teachers) {
         const info = insertUser.run(
           req.user.institution_id, row.name, row.username, row.phone, bcrypt.hashSync(row.password, 10),
-          'teacher', row.subject || null, null, row.className || null, null, null, req.user.id, row.status,
+          'teacher', null, null, null, null, null, null, req.user.id, row.status,
         );
         teacherIds.set(row.username.toLowerCase(), Number(info.lastInsertRowid));
       }
       for (const row of parsed.students) {
         insertUser.run(
           req.user.institution_id, row.name, row.username, '', bcrypt.hashSync(row.password, 10),
-          'student', null, row.grade || null, row.className, row.guardianName || null,
+          'student', null, row.grade || null, classIdFor(row.className, row.grade), row.className, row.guardianName || null,
           row.guardianPhone || null, teacherIds.get(row.teacherUsername.toLowerCase()), row.status,
         );
       }
@@ -160,7 +173,7 @@ router.patch('/:id', requireAuth, requireRole('institution', 'teacher', 'super')
     (req.user.role === 'teacher' && target.created_by === req.user.id && target.role === 'student');
   if (!canManage) return res.status(403).json({ error: '權限不足，無法管理此帳號' });
 
-  const { status, name, email, phone, password, grade, class_name, guardian_name, guardian_phone, subject } = req.body || {};
+  const { status, name, email, phone, password, grade, class_id, guardian_name, guardian_phone } = req.body || {};
   if (email) {
     const duplicate = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?')
       .get(email.trim(), target.id);
@@ -170,6 +183,12 @@ router.patch('/:id', requireAuth, requireRole('institution', 'teacher', 'super')
     return res.status(400).json({ error: '新密碼至少需要 8 個字元' });
   }
   const passwordHash = password ? bcrypt.hashSync(password, 10) : null;
+  let selectedClass = null;
+  if (class_id != null && target.role === 'student') {
+    selectedClass = db.prepare("SELECT * FROM classes WHERE id=? AND institution_id=? AND status='active'")
+      .get(class_id, target.institution_id);
+    if (!selectedClass) return res.status(400).json({ error: '請選擇有效班級' });
+  }
   db.prepare(`
     UPDATE users SET
       status = COALESCE(?, status),
@@ -177,19 +196,18 @@ router.patch('/:id', requireAuth, requireRole('institution', 'teacher', 'super')
       email = COALESCE(?, email),
       phone = COALESCE(?, phone),
       password_hash = COALESCE(?, password_hash),
-      grade = COALESCE(?, grade),
+      grade = COALESCE(?, grade), class_id = COALESCE(?, class_id),
       class_name = COALESCE(?, class_name),
       guardian_name = COALESCE(?, guardian_name),
-      guardian_phone = COALESCE(?, guardian_phone),
-      subject = COALESCE(?, subject)
+      guardian_phone = COALESCE(?, guardian_phone)
     WHERE id = ?
   `).run(
     status || null, name || null, email ? email.trim() : null, phone ?? null, passwordHash,
-    grade ?? null, class_name || null,
-    guardian_name ?? null, guardian_phone ?? null, subject || null, req.params.id
+    grade ?? null, selectedClass?.id || null, selectedClass?.name || null,
+    guardian_name ?? null, guardian_phone ?? null, req.params.id
   );
 
-  res.json({ user: db.prepare('SELECT id,name,email,phone,role,subject,grade,class_name,guardian_name,guardian_phone,status FROM users WHERE id = ?').get(req.params.id) });
+  res.json({ user: db.prepare('SELECT id,name,email,phone,role,grade,class_id,class_name,guardian_name,guardian_phone,status FROM users WHERE id = ?').get(req.params.id) });
 });
 
 module.exports = router;

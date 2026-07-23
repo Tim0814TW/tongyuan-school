@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const institutionRoutes = require('./routes/institutions');
 const userRoutes = require('./routes/users');
 const courseRoutes = require('./routes/courses');
+const classRoutes = require('./routes/classes');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/classes', classRoutes);
 
 // 統一錯誤處理，避免未預期錯誤直接把 stack trace 洩漏給前端
 app.use((err, req, res, next) => {

@@ -46,6 +46,7 @@ router.get('/', requireAuth, (req, res) => {
   const withMeta = rows.map((c) => {
     const qCount = db.prepare('SELECT COUNT(*) n FROM questions WHERE course_id=?').get(c.id).n;
     const teacher = db.prepare('SELECT name,email FROM users WHERE id=?').get(c.teacher_id);
+    const classRow = c.class_id ? db.prepare('SELECT name FROM classes WHERE id=?').get(c.class_id) : null;
     let myAttempt = null;
     if (req.user.role === 'student') {
       myAttempt = db.prepare('SELECT * FROM attempts WHERE course_id=? AND student_id=? ORDER BY submitted_at DESC LIMIT 1').get(c.id, req.user.id);
@@ -54,6 +55,7 @@ router.get('/', requireAuth, (req, res) => {
       ...c,
       teacher_name: teacher?.name || '',
       teacher_email: teacher?.email || '',
+      class_name: classRow?.name || '',
       question_count: qCount,
       can_edit: req.user.role === 'institution' || (req.user.role === 'teacher' && c.teacher_id === req.user.id),
       my_attempt: myAttempt || null,
@@ -64,12 +66,16 @@ router.get('/', requireAuth, (req, res) => {
 
 // POST /api/courses — 老師建立課程
 router.post('/', requireAuth, requireRole('teacher'), (req, res) => {
-  const { title, subject, youtube_url, description } = req.body || {};
+  const { title, subject, class_id, youtube_url, description } = req.body || {};
   if (!title) return res.status(400).json({ error: '請輸入課程標題' });
+  const selectedClass = class_id
+    ? db.prepare("SELECT id FROM classes WHERE id=? AND institution_id=? AND status='active'").get(class_id, req.user.institution_id)
+    : null;
+  if (class_id && !selectedClass) return res.status(400).json({ error: '請選擇有效班級' });
   const info = db.prepare(`
-    INSERT INTO courses (institution_id, teacher_id, title, subject, youtube_url, description)
-    VALUES (?,?,?,?,?,?)
-  `).run(req.user.institution_id, req.user.id, title.trim(), subject || '', youtube_url || '', description || '');
+    INSERT INTO courses (institution_id, teacher_id, class_id, title, subject, youtube_url, description)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(req.user.institution_id, req.user.id, selectedClass?.id || null, title.trim(), subject || '', youtube_url || '', description || '');
   const course = db.prepare('SELECT * FROM courses WHERE id=?').get(info.lastInsertRowid);
   res.status(201).json({ course });
 });
@@ -103,7 +109,7 @@ router.patch('/:id', requireAuth, requireRole('teacher', 'institution'), (req, r
   if (req.user.role === 'institution' && course.institution_id !== req.user.institution_id) {
     return res.status(403).json({ error: '只能整理自己園所的課程' });
   }
-  const { title, subject, youtube_url, description, teacher_id } = req.body || {};
+  const { title, subject, class_id, youtube_url, description, teacher_id } = req.body || {};
   let nextTeacherId = null;
   if (req.user.role === 'institution' && teacher_id != null) {
     const teacher = db.prepare(
@@ -112,14 +118,26 @@ router.patch('/:id', requireAuth, requireRole('teacher', 'institution'), (req, r
     if (!teacher) return res.status(400).json({ error: '請選擇此園所仍啟用的老師' });
     nextTeacherId = teacher.id;
   }
+  let nextClassId = null;
+  const hasClassSelection = Object.prototype.hasOwnProperty.call(req.body || {}, 'class_id');
+  if (class_id != null) {
+    const selectedClass = db.prepare("SELECT id FROM classes WHERE id=? AND institution_id=? AND status='active'")
+      .get(class_id, course.institution_id);
+    if (!selectedClass) return res.status(400).json({ error: '請選擇有效班級' });
+    nextClassId = selectedClass.id;
+  }
   db.prepare(`
     UPDATE courses SET
       title = COALESCE(?, title), subject = COALESCE(?, subject),
       youtube_url = COALESCE(?, youtube_url), description = COALESCE(?, description),
       teacher_id = COALESCE(?, teacher_id),
+      class_id = CASE WHEN ? THEN ? ELSE class_id END,
       updated_at = datetime('now')
     WHERE id = ?
-  `).run(title || null, subject ?? null, youtube_url ?? null, description ?? null, nextTeacherId, req.params.id);
+  `).run(
+    title || null, subject ?? null, youtube_url ?? null, description ?? null,
+    nextTeacherId, hasClassSelection ? 1 : 0, nextClassId, req.params.id,
+  );
   res.json({ course: db.prepare('SELECT * FROM courses WHERE id=?').get(req.params.id) });
 });
 

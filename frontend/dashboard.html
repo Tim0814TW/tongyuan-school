@@ -103,6 +103,7 @@ const ROLE_META = {
   teacher:     { name:'老師',    color:'#E44878', soft:'#FCE7ED' },
   student:     { name:'學生',    color:'#F0C03C', soft:'#FBF1D8' },
 };
+const SUBJECT_OPTIONS = ['國語','英文','數學','自然','社會','程式設計','藝術','其他'];
 
 let state = { tab:{}, courseId:null, quizAnswers:{}, quizResult:null };
 
@@ -214,38 +215,87 @@ async function renderInstitution(app){
   const { users: teachers } = await api('/api/users?role=teacher');
   const { users: students } = await api('/api/users?role=student');
   const { courses } = await api('/api/courses');
+  const { classes } = await api('/api/classes');
   window.__teachers = teachers;
   window.__students = students;
   window.__institutionCourses = courses;
+  window.__classes = classes;
 
   app.innerHTML = `
     <div class="page-head">
       <div><h1>園所管理主控台</h1><div class="sub">管理老師、全園課程與個別學生觀看權限</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-ghost" onclick="openUserImportModal()">⇧ Excel 匯入師生</button>
-        <button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>
+        ${tab==='classes'
+          ? '<button class="btn btn-accent" onclick="openClassModal()">＋ 新增班級</button>'
+          : '<button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>'}
       </div>
     </div>
-    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'courses',label:'課程管理'}], tab)}
+    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'classes',label:'班級管理'},{key:'courses',label:'課程管理'}], tab)}
     ${tab==='overview' ? `
       <div class="grid-stats">
         <div class="stat-card"><div class="label">老師數</div><div class="value">${teachers.length}</div></div>
+        <div class="stat-card"><div class="label">班級數</div><div class="value">${classes.filter(item=>item.status==='active').length}</div></div>
         <div class="stat-card"><div class="label">學生數</div><div class="value">${students.length}</div></div>
         <div class="stat-card"><div class="label">課程總數</div><div class="value">${teachers.reduce((s,t)=>s+t.course_count,0)}</div></div>
       </div>` : ''}
     ${tab==='courses'
       ? `<div class="card"><div class="card-head"><h2>全園課程</h2><span class="badge badge-gray">${courses.length} 門</span></div><div class="card-body">${institutionCourseTable(courses)}</div></div>`
+      : tab==='classes'
+        ? `<div class="card"><div class="card-head"><div><h2>班級管理</h2><small>先建立班級，新增學生與課程時就能直接選取。</small></div></div><div class="card-body">${classTable(classes)}</div></div>`
       : `<div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>`}
   `;
+}
+function classTable(classes){
+  if(!classes.length) return '<div class="empty">尚未建立班級，點右上角「新增班級」開始設定。</div>';
+  return `<table><thead><tr><th>班級名稱</th><th>年級</th><th>學生數</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
+    ${classes.map(item=>`<tr>
+      <td><b>${esc(item.name)}</b></td><td>${esc(item.grade||'—')}</td>
+      <td class="mono">${item.student_count}</td><td class="mono">${item.course_count}</td>
+      <td>${item.status==='active'?'<span class="badge badge-jade">使用中</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openClassModal(${item.id})">編輯</button></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+function openClassModal(classId=null){
+  const item = classId ? (window.__classes||[]).find(row=>row.id===classId) : null;
+  openModal(item?'編輯班級':'新增班級', `
+    <input id="f_classId" type="hidden" value="${item?.id||''}">
+    <div class="field"><label>班級名稱</label><input id="f_className" value="${escAttr(item?.name||'')}" placeholder="例如 七年一班"></div>
+    <div class="field"><label>年級</label><select id="f_classGrade">${gradeOptions(item?.grade||'')}</select></div>
+    ${item?`<div class="field"><label>狀態</label><select id="f_classStatus"><option value="active" ${item.status==='active'?'selected':''}>使用中</option><option value="disabled" ${item.status==='disabled'?'selected':''}>停用</option></select></div>`:''}
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitClassModal()">${item?'儲存班級':'建立班級'}</button>
+  `);
+}
+async function submitClassModal(){
+  const classId=val('f_classId');
+  const body={name:val('f_className'),grade:val('f_classGrade'),status:document.getElementById('f_classStatus')?.value};
+  if(!body.name) return toast('請輸入班級名稱','err');
+  try{ await api(classId?`/api/classes/${classId}`:'/api/classes',{method:classId?'PATCH':'POST',body}); toast(classId?'班級已更新':'班級已建立'); closeModal(); render(); }
+  catch(error){ toast(error.message,'err'); }
+}
+function gradeOptions(selected=''){
+  const options=['幼幼班','小班','中班','大班','一年級','二年級','三年級','四年級','五年級','六年級','七年級','八年級','九年級','高中一年級','高中二年級','高中三年級'];
+  if(selected && !options.includes(selected)) options.unshift(selected);
+  return `<option value="">請選擇年級</option>${options.map(item=>`<option value="${escAttr(item)}" ${item===selected?'selected':''}>${esc(item)}</option>`).join('')}`;
+}
+function subjectOptions(selected=''){
+  const options=[...SUBJECT_OPTIONS];
+  if(selected && !options.includes(selected)) options.unshift(selected);
+  return `<option value="">請選擇科目</option>${options.map(item=>`<option value="${escAttr(item)}" ${item===selected?'selected':''}>${esc(item)}</option>`).join('')}`;
+}
+function classOptions(selectedId=null){
+  const active=(window.__classes||[]).filter(item=>item.status==='active'||item.id===selectedId);
+  return `<option value="">不指定班級</option>${active.map(item=>`<option value="${item.id}" ${item.id===selectedId?'selected':''}>${esc(item.grade?`${item.grade} · ${item.name}`:item.name)}</option>`).join('')}`;
 }
 function institutionCourseTable(rows){
   if(!rows.length) return '<div class="empty">目前尚未建立課程。老師建立課程後，園所可在這裡統一整理。</div>';
   const grouped = [...rows].sort((a,b)=>(a.teacher_name||'').localeCompare(b.teacher_name||'','zh-Hant') || (a.title||'').localeCompare(b.title||'','zh-Hant'));
-  return `<table><thead><tr><th>課程</th><th>授課老師</th><th>科目</th><th>題目</th><th>最後更新</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>課程</th><th>授課老師</th><th>班級／科目</th><th>題目</th><th>最後更新</th><th></th></tr></thead><tbody>
   ${grouped.map(course=>`<tr>
     <td><b>${esc(course.title)}</b><br><small>${esc(course.description||'尚未填寫課程說明')}</small></td>
     <td>${esc(course.teacher_name||'未指定')}<br><small>${esc(course.teacher_email||'')}</small></td>
-    <td>${esc(course.subject||'—')}</td>
+    <td>${esc(course.class_name||'全園')}<br><small>${esc(course.subject||'未分類')}</small></td>
     <td class="mono">${course.question_count||0} 題</td>
     <td><small>${esc((course.updated_at||course.created_at||'').replace('T',' '))}</small></td>
     <td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" onclick="openInstitutionCourseModal(${course.id})">整理／編輯</button><button class="btn btn-accent btn-sm" onclick="openCourseVisibilityModal(${course.id})">學生觀看權限</button></div></td>
@@ -290,7 +340,8 @@ function openInstitutionCourseModal(courseId){
     <input id="f_courseId" type="hidden" value="${course.id}">
     <div class="field"><label>課程名稱</label><input id="f_courseTitle" value="${escAttr(course.title||'')}"></div>
     <div class="field"><label>授課老師</label><select id="f_courseTeacher">${(window.__teachers||[]).map(teacher=>`<option value="${teacher.id}" ${teacher.id===course.teacher_id?'selected':''}>${esc(teacher.name)}（${esc(teacher.email)}）</option>`).join('')}</select></div>
-    <div class="field"><label>科目</label><input id="f_courseSubject" value="${escAttr(course.subject||'')}"></div>
+    <div class="field"><label>班級</label><select id="f_courseClass">${classOptions(course.class_id)}</select></div>
+    <div class="field"><label>科目</label><select id="f_courseSubject">${subjectOptions(course.subject||'')}</select></div>
     <div class="field"><label>YouTube 課程網址</label><input id="f_courseYoutube" value="${escAttr(course.youtube_url||'')}"></div>
     <div class="field"><label>課程說明</label><textarea id="f_courseDescription" rows="4">${esc(course.description||'')}</textarea></div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstitutionCourse()">儲存課程整理</button>
@@ -299,7 +350,7 @@ function openInstitutionCourseModal(courseId){
 async function submitInstitutionCourse(){
   const courseId = val('f_courseId');
   const body = {
-    title: val('f_courseTitle'), teacher_id: Number(val('f_courseTeacher')),
+    title: val('f_courseTitle'), teacher_id: Number(val('f_courseTeacher')), class_id: Number(val('f_courseClass'))||null,
     subject: val('f_courseSubject'), youtube_url: val('f_courseYoutube'), description: val('f_courseDescription'),
   };
   if(!body.title) return toast('請輸入課程名稱','err');
@@ -348,12 +399,11 @@ async function runUserImport(dryRun){
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
-  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>科目</th><th>班級</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
+  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>主要工作</th><th>已發布課程</th><th>狀態</th><th></th></tr></thead><tbody>
   ${rows.map(t=>`<tr>
     <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
     <td>${esc(t.phone||'—')}<br><small>${esc(t.email)}</small></td>
-    <td>${esc(t.subject||'—')}</td>
-    <td>${esc(t.class_name||'—')}</td>
+    <td>追蹤作業進度<br><small>發布課程與功課</small></td>
     <td class="mono">${t.course_count}</td>
     <td>${t.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openTeacherModal(${t.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
@@ -372,14 +422,13 @@ function openTeacherModal(teacherId=null){
     <div class="field"><label>登入帳號</label><input id="f_email" type="text" value="${escAttr(teacher?.email||'')}" placeholder="請設定登入帳號" autocomplete="username"></div>
     <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" value="${escAttr(teacher?.phone||'')}" placeholder="0912-345-678"></div>
     <div class="field"><label>${teacher?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${teacher?'不修改請留空':'至少 8 個字元'}"></div>
-    <div class="field"><label>負責科目</label><input id="f_subject" value="${escAttr(teacher?.subject||'')}" placeholder="例如 國中數學"></div>
-    <div class="field"><label>負責班級</label><input id="f_class" value="${escAttr(teacher?.class_name||'')}" placeholder="例如 數學A班"></div>
+    <div style="background:var(--accent-soft);padding:11px 13px;border-radius:10px;margin-bottom:14px;font-size:12.5px;line-height:1.7;">老師可查看學生作業進度、發布課程與出功課；班級由學生資料與課程選單統一管理。</div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">${teacher?'儲存老師資料':'建立老師帳號'}</button>
   `);
 }
 async function submitTeacherModal(){
   const userId = val('f_userId');
-  const body = { name: val('f_name'), email: val('f_email'), phone: val('f_phone'), password: val('f_password'), subject: val('f_subject'), class_name: val('f_class') };
+  const body = { name: val('f_name'), email: val('f_email'), phone: val('f_phone'), password: val('f_password') };
   try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'老師資料已更新':'老師帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }
@@ -391,7 +440,7 @@ async function renderTeacher(app){
   const tab = state.tab.teacher || 'courses';
   app.innerHTML = `
     <div class="page-head">
-      <div><h1>老師教學主控台</h1><div class="sub">${esc(CURRENT.name)} · ${esc(CURRENT.subject||'')} · ${esc(CURRENT.class_name||'')}</div></div>
+      <div><h1>老師教學主控台</h1><div class="sub">${esc(CURRENT.name)} · 追蹤孩子作業進度、發布課程與功課</div></div>
       ${tab==='courses' ? `<button class="btn btn-accent" onclick="openCourseEditor(null)">＋ 新增課程</button>`
         : tab==='students' ? `<button class="btn btn-accent" onclick="openStudentModal()">＋ 新增學生</button>` : ''}
     </div>
@@ -440,7 +489,9 @@ async function renderTeacherCourseView(app, courseId){
 }
 async function teacherStudentsHTML(){
   const { users: students } = await api('/api/users?role=student');
+  const { classes } = await api('/api/classes');
   window.__students = students;
+  window.__classes = classes;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
   return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
   ${students.map(s=>`<tr>
@@ -458,8 +509,8 @@ function openStudentModal(studentId=null){
     <input id="f_userId" type="hidden" value="${student?.id||''}">
     <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(student?.name||'')}" placeholder="學生姓名"></div>
     <div class="field"><label>登入帳號</label><input id="f_email" value="${escAttr(student?.email||'')}" placeholder="請設定登入帳號" autocomplete="username"></div>
-    <div class="field"><label>就讀年級</label><input id="f_grade" value="${escAttr(student?.grade||'')}" placeholder="例如 七年級"></div>
-    <div class="field"><label>班級</label><input id="f_class" value="${escAttr(student?.class_name||'')}" placeholder="例如 數學A班"></div>
+    <div class="field"><label>就讀年級</label><select id="f_grade">${gradeOptions(student?.grade||'')}</select></div>
+    <div class="field"><label>班級</label><select id="f_classId"><option value="">請選擇班級</option>${(window.__classes||[]).filter(item=>item.status==='active'||item.id===student?.class_id).map(item=>`<option value="${item.id}" ${item.id===student?.class_id?'selected':''}>${esc(item.grade?`${item.grade} · ${item.name}`:item.name)}</option>`).join('')}</select></div>
     <div class="field"><label>家長姓名</label><input id="f_guardianName" value="${escAttr(student?.guardian_name||'')}" placeholder="家長或監護人姓名"></div>
     <div class="field"><label>家長聯絡電話</label><input id="f_guardianPhone" type="tel" value="${escAttr(student?.guardian_phone||'')}" placeholder="0912-345-678"></div>
     <div class="field"><label>${student?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${student?'不修改請留空':'至少 8 個字元'}"></div>
@@ -469,7 +520,7 @@ function openStudentModal(studentId=null){
 async function submitStudentModal(){
   const userId = val('f_userId');
   const body = { name: val('f_name'), email: val('f_email'), password: val('f_password'),
-    grade: val('f_grade'), class_name: val('f_class'), guardian_name: val('f_guardianName'), guardian_phone: val('f_guardianPhone') };
+    grade: val('f_grade'), class_id: Number(val('f_classId'))||null, guardian_name: val('f_guardianName'), guardian_phone: val('f_guardianPhone') };
   try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'學生資料已更新':'學生帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }
@@ -533,6 +584,8 @@ function backToCourses(){ state.view=null; state.courseId=null; render(); }
 async function renderCourseEditor(app, courseId){
   let course = { title:'', subject:'', youtube_url:'', description:'' };
   let questions = [];
+  const { classes } = await api('/api/classes');
+  window.__classes = classes;
   if (courseId){
     const data = await api(`/api/courses/${courseId}`);
     course = data.course; questions = data.questions;
@@ -544,7 +597,8 @@ async function renderCourseEditor(app, courseId){
     </div>
     <div class="card"><div class="card-body">
       <div class="field"><label>課程標題</label><input id="c_title" value="${escAttr(course.title)}"></div>
-      <div class="field"><label>科目</label><input id="c_subject" value="${escAttr(course.subject||'')}"></div>
+      <div class="field"><label>班級</label><select id="c_class">${classOptions(course.class_id)}</select></div>
+      <div class="field"><label>科目</label><select id="c_subject">${subjectOptions(course.subject||'')}</select></div>
       <div class="field"><label>YouTube 影片連結</label><input id="c_youtube" value="${escAttr(course.youtube_url||'')}" placeholder="https://www.youtube.com/watch?v=..."></div>
       <div class="field"><label>課程說明</label><textarea id="c_desc">${esc(course.description||'')}</textarea></div>
       <button class="btn btn-primary" onclick="saveCourseInfo(${courseId||'null'})">${courseId?'儲存變更':'建立課程'}</button>
@@ -574,7 +628,7 @@ function qItemHTML(q, idx){
   </div>`;
 }
 async function saveCourseInfo(courseId){
-  const body = { title: val('c_title'), subject: val('c_subject'), youtube_url: val('c_youtube'), description: val('c_desc') };
+  const body = { title: val('c_title'), class_id:Number(val('c_class'))||null, subject: val('c_subject'), youtube_url: val('c_youtube'), description: val('c_desc') };
   try{
     if(courseId){ await api(`/api/courses/${courseId}`, { method:'PATCH', body }); toast('課程已更新'); render(); }
     else{ const { course } = await api('/api/courses', { method:'POST', body }); toast('課程已建立，接著新增題目吧'); openCourseEditor(course.id); }

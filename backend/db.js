@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS classes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  institution_id INTEGER NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  grade TEXT DEFAULT '',
+  status TEXT DEFAULT 'active' CHECK(status IN ('active','disabled')),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(institution_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS courses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   institution_id INTEGER NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -134,12 +144,38 @@ const userMigrations = {
   grade: "TEXT DEFAULT ''",
   guardian_name: "TEXT DEFAULT ''",
   guardian_phone: "TEXT DEFAULT ''",
+  class_id: 'INTEGER REFERENCES classes(id)',
 };
 for (const [column, definition] of Object.entries(userMigrations)) {
   if (!userColumns.has(column)) {
     db.exec(`ALTER TABLE users ADD COLUMN ${column} ${definition}`);
   }
 }
+
+const courseColumns = new Set(
+  db.prepare('PRAGMA table_info(courses)').all().map((column) => column.name)
+);
+if (!courseColumns.has('class_id')) {
+  db.exec('ALTER TABLE courses ADD COLUMN class_id INTEGER REFERENCES classes(id)');
+}
+
+// 將既有手動班級名稱轉成可重複使用的班級選單資料。
+db.exec(`
+  INSERT OR IGNORE INTO classes (institution_id, name, grade)
+  SELECT institution_id, class_name, COALESCE(MAX(grade), '')
+  FROM users
+  WHERE institution_id IS NOT NULL AND role='student'
+    AND class_name IS NOT NULL AND TRIM(class_name) != ''
+  GROUP BY institution_id, class_name;
+
+  UPDATE users
+  SET class_id = (
+    SELECT c.id FROM classes c
+    WHERE c.institution_id = users.institution_id AND c.name = users.class_name
+  )
+  WHERE role='student' AND class_id IS NULL
+    AND class_name IS NOT NULL AND TRIM(class_name) != '';
+`);
 
 const courseAccessColumns = new Set(
   db.prepare('PRAGMA table_info(course_access)').all().map((column) => column.name)

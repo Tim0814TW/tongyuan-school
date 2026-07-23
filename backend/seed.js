@@ -12,7 +12,7 @@ function hash(pw) {
 console.log('🌱 清空舊資料...');
 db.exec(`
   DELETE FROM answers; DELETE FROM attempts; DELETE FROM course_access; DELETE FROM course_blocks;
-  DELETE FROM questions; DELETE FROM courses; DELETE FROM users; DELETE FROM institutions;
+  DELETE FROM questions; DELETE FROM courses; DELETE FROM users; DELETE FROM classes; DELETE FROM institutions;
 `);
 
 console.log('🌱 建立最高權限帳號...');
@@ -34,6 +34,10 @@ const inst = db.prepare(`
 );
 const institutionId = inst.lastInsertRowid;
 
+const classInfo = db.prepare('INSERT INTO classes (institution_id,name,grade) VALUES (?,?,?)')
+  .run(institutionId, '數學A班', '七年級');
+const classId = classInfo.lastInsertRowid;
+
 const ownerInfo = db.prepare(`
   INSERT INTO users (institution_id, name, email, password_hash, role, created_by)
   VALUES (?,?,?,?, 'institution', 1)
@@ -48,23 +52,23 @@ const teacherId = teacherInfo.lastInsertRowid;
 
 console.log('🌱 建立示範學生：王小明、李佳蓉...');
 const studentInfo = db.prepare(`
-  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_name, guardian_name, guardian_phone, created_by)
-  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?)
-`).run(institutionId, '王小明', 'A1042501', hash('Study#2026'), '七年級', '數學A班', '王大明', '0911-111-111', teacherId);
+  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_id, class_name, guardian_name, guardian_phone, created_by)
+  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?, ?)
+`).run(institutionId, '王小明', 'A1042501', hash('Study#2026'), '七年級', classId, '數學A班', '王大明', '0911-111-111', teacherId);
 const studentId = studentInfo.lastInsertRowid;
 
 const studentInfo2 = db.prepare(`
-  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_name, guardian_name, guardian_phone, created_by)
-  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?)
-`).run(institutionId, '李佳蓉', 'A1042502', hash('Study#2026'), '七年級', '數學A班', '李媽媽', '0922-222-222', teacherId);
+  INSERT INTO users (institution_id, name, email, password_hash, role, grade, class_id, class_name, guardian_name, guardian_phone, created_by)
+  VALUES (?,?,?,?, 'student', ?, ?, ?, ?, ?, ?)
+`).run(institutionId, '李佳蓉', 'A1042502', hash('Study#2026'), '七年級', classId, '數學A班', '李媽媽', '0922-222-222', teacherId);
 const studentId2 = studentInfo2.lastInsertRowid;
 
 console.log('🌱 建立示範課程：一元二次方程式...');
 const courseInfo = db.prepare(`
-  INSERT INTO courses (institution_id, teacher_id, title, subject, youtube_url, description)
-  VALUES (?,?,?,?,?,?)
+  INSERT INTO courses (institution_id, teacher_id, class_id, title, subject, youtube_url, description)
+  VALUES (?,?,?,?,?,?,?)
 `).run(
-  institutionId, teacherId,
+  institutionId, teacherId, classId,
   '一元二次方程式：配方法解題', '國中數學',
   'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   '介紹配方法的推導過程，並示範三種常見題型的解法。'
