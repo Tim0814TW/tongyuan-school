@@ -274,7 +274,9 @@ async function renderInstitution(app){
         <button class="btn btn-ghost" onclick="openUserImportModal()">⇧ Excel 匯入師生</button>
         ${tab==='classes'
           ? '<button class="btn btn-accent" onclick="openClassModal()">＋ 新增班級</button>'
-          : '<button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>'}
+          : tab==='courses'
+            ? '<button class="btn btn-accent" onclick="openInstitutionCourseModal()">＋ 新增課程</button>'
+            : '<button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>'}
       </div>
     </div>
     ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'students',label:'學生總覽'},{key:'classes',label:'班級管理'},{key:'courses',label:'課程管理'}], tab)}
@@ -392,18 +394,18 @@ async function saveCourseVisibility(courseId){
   if(errors.length) return toast(`有 ${errors.length} 位學生的權限未能更新，請重試`,'err');
   toast('本課程觀看權限已更新'); closeModal();
 }
-function openInstitutionCourseModal(courseId){
-  const course = (window.__institutionCourses||[]).find(item=>item.id===courseId);
-  if(!course) return toast('找不到課程','err');
-  openModal('整理課程', `
-    <input id="f_courseId" type="hidden" value="${course.id}">
-    <div class="field"><label>課程名稱</label><input id="f_courseTitle" value="${escAttr(course.title||'')}"></div>
-    <div class="field"><label>授課老師</label><select id="f_courseTeacher">${(window.__teachers||[]).map(teacher=>`<option value="${teacher.id}" ${teacher.id===course.teacher_id?'selected':''}>${esc(teacher.name)}（${esc(teacher.email)}）</option>`).join('')}</select></div>
-    <div class="field"><label>班級</label><select id="f_courseClass">${classOptions(course.class_id)}</select></div>
-    <div class="field"><label>科目</label><select id="f_courseSubject">${subjectOptions(course.subject||'')}</select></div>
-    <div class="field"><label>YouTube 課程網址</label><input id="f_courseYoutube" value="${escAttr(course.youtube_url||'')}"></div>
-    <div class="field"><label>課程說明</label><textarea id="f_courseDescription" rows="4">${esc(course.description||'')}</textarea></div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstitutionCourse()">儲存課程整理</button>
+function openInstitutionCourseModal(courseId=null){
+  const course = courseId ? (window.__institutionCourses||[]).find(item=>item.id===courseId) : null;
+  if(courseId && !course) return toast('找不到課程','err');
+  openModal(course?'整理課程':'新增課程', `
+    <input id="f_courseId" type="hidden" value="${course?.id||''}">
+    <div class="field"><label>課程名稱</label><input id="f_courseTitle" value="${escAttr(course?.title||'')}" placeholder="例如 一元二次方程式"></div>
+    <div class="field"><label>授課老師</label><select id="f_courseTeacher"><option value="">請選擇老師</option>${(window.__teachers||[]).filter(teacher=>teacher.status==='active'||teacher.id===course?.teacher_id).map(teacher=>`<option value="${teacher.id}" ${teacher.id===course?.teacher_id?'selected':''}>${esc(teacher.name)}（${esc(teacher.email)}）</option>`).join('')}</select></div>
+    <div class="field"><label>班級</label><select id="f_courseClass">${classOptions(course?.class_id)}</select></div>
+    <div class="field"><label>科目</label><select id="f_courseSubject">${subjectOptions(course?.subject||'')}</select></div>
+    <div class="field"><label>YouTube 課程網址</label><input id="f_courseYoutube" value="${escAttr(course?.youtube_url||'')}" placeholder="https://www.youtube.com/watch?v=..."></div>
+    <div class="field"><label>課程說明</label><textarea id="f_courseDescription" rows="4">${esc(course?.description||'')}</textarea></div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstitutionCourse()">${course?'儲存課程整理':'建立課程'}</button>
   `);
 }
 async function submitInstitutionCourse(){
@@ -413,9 +415,10 @@ async function submitInstitutionCourse(){
     subject: val('f_courseSubject'), youtube_url: val('f_courseYoutube'), description: val('f_courseDescription'),
   };
   if(!body.title) return toast('請輸入課程名稱','err');
+  if(!body.teacher_id) return toast('請選擇授課老師','err');
   try{
-    await api(`/api/courses/${courseId}`, { method:'PATCH', body });
-    toast('課程已整理完成'); closeModal(); render();
+    await api(courseId?`/api/courses/${courseId}`:'/api/courses', { method:courseId?'PATCH':'POST', body });
+    toast(courseId?'課程已整理完成':'課程已建立，老師可以開始出題'); closeModal(); render();
   }catch(err){ toast(err.message,'err'); }
 }
 function openUserImportModal(){
@@ -458,11 +461,11 @@ async function runUserImport(dryRun){
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
-  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>主要工作</th><th>已發布課程</th><th>狀態</th><th></th></tr></thead><tbody id="teacherList">
+  return `<table><thead><tr><th>老師</th><th>登入帳號</th><th>主要工作</th><th>題庫課程</th><th>狀態</th><th></th></tr></thead><tbody id="teacherList">
   ${rows.map(t=>`<tr data-filter-row data-search="${escAttr(`${t.name} ${t.email} ${t.phone||''}`)}" data-status="${t.status}">
     <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
-    <td>${esc(t.phone||'—')}<br><small>${esc(t.email)}</small></td>
-    <td>追蹤作業進度<br><small>發布課程與功課</small></td>
+    <td>${esc(t.email)}</td>
+    <td>追蹤作業進度<br><small>出題與查看回答</small></td>
     <td class="mono">${t.course_count}</td>
     <td>${t.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openTeacherModal(${t.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="toggleUser(${t.id}, '${t.status==='active'?'disabled':'active'}')">${t.status==='active'?'停用':'啟用'}</button></td>
@@ -479,15 +482,14 @@ function openTeacherModal(teacherId=null){
     <input id="f_userId" type="hidden" value="${teacher?.id||''}">
     <div class="field"><label>姓名</label><input id="f_name" value="${escAttr(teacher?.name||'')}" placeholder="老師姓名"></div>
     <div class="field"><label>登入帳號</label><input id="f_email" type="text" value="${escAttr(teacher?.email||'')}" placeholder="請設定登入帳號" autocomplete="username"></div>
-    <div class="field"><label>聯絡電話</label><input id="f_phone" type="tel" value="${escAttr(teacher?.phone||'')}" placeholder="0912-345-678"></div>
     <div class="field"><label>${teacher?'重設密碼（留空則不變）':'初始密碼'}</label><input id="f_password" type="password" minlength="8" placeholder="${teacher?'不修改請留空':'至少 8 個字元'}"></div>
-    <div style="background:var(--accent-soft);padding:11px 13px;border-radius:10px;margin-bottom:14px;font-size:12.5px;line-height:1.7;">老師可查看學生作業進度、發布課程與出功課；班級由學生資料與課程選單統一管理。</div>
+    <div style="background:var(--accent-soft);padding:11px 13px;border-radius:10px;margin-bottom:14px;font-size:12.5px;line-height:1.7;">老師可替園所課程建立選擇題、是非題與圖片題，並查看各班學生回答。</div>
     <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitTeacherModal()">${teacher?'儲存老師資料':'建立老師帳號'}</button>
   `);
 }
 async function submitTeacherModal(){
   const userId = val('f_userId');
-  const body = { name: val('f_name'), email: val('f_email'), phone: val('f_phone'), password: val('f_password') };
+  const body = { name: val('f_name'), email: val('f_email'), password: val('f_password') };
   try{ await api(userId?`/api/users/${userId}`:'/api/users', { method:userId?'PATCH':'POST', body }); toast(userId?'老師資料已更新':'老師帳號建立成功'); closeModal(); render(); }
   catch(err){ toast(err.message, 'err'); }
 }
@@ -499,11 +501,10 @@ async function renderTeacher(app){
   const tab = state.tab.teacher || 'courses';
   app.innerHTML = `
     <div class="page-head">
-      <div><h1>老師教學主控台</h1><div class="sub">${esc(CURRENT.name)} · 追蹤孩子作業進度、發布課程與功課</div></div>
-      ${tab==='courses' ? `<button class="btn btn-accent" onclick="openCourseEditor(null)">＋ 新增課程</button>`
-        : tab==='students' ? `<button class="btn btn-accent" onclick="openStudentModal()">＋ 新增學生</button>` : ''}
+      <div><h1>老師教學主控台</h1><div class="sub">${esc(CURRENT.name)} · 建立課程題庫、追蹤各班孩子回答</div></div>
+      ${tab==='students' ? `<button class="btn btn-accent" onclick="openStudentModal()">＋ 新增學生</button>` : ''}
     </div>
-    ${tabsHTML('teacher',[{key:'courses',label:'課程管理'},{key:'students',label:'學生管理'},{key:'grades',label:'學生成績'}], tab)}
+    ${tabsHTML('teacher',[{key:'courses',label:'課程題庫'},{key:'students',label:'學生進度'},{key:'grades',label:'作答紀錄'}], tab)}
     <div id="teacherTabBody"><div class="spinner"></div></div>
   `;
   const body = document.getElementById('teacherTabBody');
@@ -517,12 +518,12 @@ async function renderTeacher(app){
 }
 async function teacherCoursesHTML(){
   const { courses } = await api('/api/courses');
-  if(!courses.length) return '<div class="empty">還沒有課程，點右上角「新增課程」開始建立第一堂課。</div>';
+  if(!courses.length) return '<div class="empty">園所尚未建立課程；課程建立後，老師就能在這裡開始出題。</div>';
   const classFilters=[...new Map(courses.filter(item=>item.class_id).map(item=>[item.class_id,{value:String(item.class_id),label:item.class_name}])).values()];
-  return `<div class="view-panel"><div class="view-panel-head"><div><h2>園所課程</h2><small>自己的課程可編輯，同園課程可查看</small></div><span class="badge badge-gray">${courses.length} 門</span></div>
-    ${viewToolbar('teacherCourseList',{placeholder:'搜尋課程、老師或科目',filters:[{key:'class',label:'班級',options:classFilters},{key:'owner',label:'分類',options:[{value:'mine',label:'我的課程'},{value:'shared',label:'同園課程'}]}]})}
+  return `<div class="view-panel"><div class="view-panel-head"><div><h2>課程題庫</h2><small>選擇園所課程，建立選擇題、是非題或圖片題</small></div><span class="badge badge-gray">${courses.length} 門</span></div>
+    ${viewToolbar('teacherCourseList',{placeholder:'搜尋課程、老師或科目',filters:[{key:'class',label:'班級',options:classFilters}]})}
     <div class="course-grid" id="teacherCourseList" style="padding:18px;">${courses.map(c=>`
-    <div class="course-card" data-filter-row data-search="${escAttr(`${c.title} ${c.teacher_name||''} ${c.subject||''} ${c.class_name||''}`)}" data-class="${c.class_id||''}" data-owner="${c.can_edit?'mine':'shared'}">
+    <div class="course-card" data-filter-row data-search="${escAttr(`${c.title} ${c.teacher_name||''} ${c.subject||''} ${c.class_name||''}`)}" data-class="${c.class_id||''}">
       <div class="course-thumb" style="background:linear-gradient(135deg,#846CA8,#48C0F0);">
         <span class="tag">${esc(c.subject||'課程')}</span>
         <div class="play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#545454"><path d="M8 5v14l11-7z"/></svg></div>
@@ -530,9 +531,7 @@ async function teacherCoursesHTML(){
       <div class="body">
         <h3>${esc(c.title)}</h3>
         <div class="meta"><span>${c.question_count} 題測驗</span><span>${esc(c.teacher_name||'')}</span></div>
-        ${c.can_edit
-          ? `<button class="btn btn-ghost btn-sm" style="align-self:flex-start;" onclick="openCourseEditor(${c.id})">編輯我的課程</button>`
-          : `<button class="btn btn-ghost btn-sm" style="align-self:flex-start;" onclick="openTeacherCourseView(${c.id})">查看園所課程</button>`}
+        <button class="btn btn-accent btn-sm" style="align-self:flex-start;" onclick="openCourseEditor(${c.id})">管理題目</button>
       </div>
     </div>`).join('')}</div></div>`;
 }
@@ -590,17 +589,20 @@ async function submitStudentModal(){
 }
 async function teacherGradesHTML(){
   const data = await api('/api/courses');
-  const courses = data.courses.filter(course=>course.can_edit);
+  const courses = data.courses;
+  const { classes } = await api('/api/classes');
   if(!courses.length) return { html:'<div class="empty">還沒有課程可查看成績。</div>', firstCourseId:null };
   const first = courses[0];
   const html = `
-    <div class="field" style="max-width:280px;">
-      <label>選擇課程</label>
-      <select id="gradeCourseSelect" onchange="loadGrades(this.value)">
-        ${courses.map(c=>`<option value="${c.id}">${esc(c.title)}</option>`).join('')}
-      </select>
+    <div class="view-panel">
+      <div class="view-panel-head"><div><h2>各班學生作答紀錄</h2><small>選擇課程後，可依班級查看每個孩子的答案與分數</small></div></div>
+      <div class="view-toolbar">
+        <select id="gradeCourseSelect" onchange="loadGrades(this.value)">${courses.map(c=>`<option value="${c.id}">${esc(c.title)}</option>`).join('')}</select>
+        <select data-filter-for="gradeAttemptList" data-key="class" onchange="applyViewFilters('gradeAttemptList')"><option value="">班級：全部</option>${classes.map(item=>`<option value="${item.id}">${esc(item.name)}</option>`).join('')}</select>
+        <span class="view-count" id="gradeAttemptListCount">顯示全部</span>
+      </div>
+      <div id="gradesTableWrap"><div class="spinner"></div></div>
     </div>
-    <div id="gradesTableWrap"><div class="spinner"></div></div>
   `;
   return { html, firstCourseId: first.id };
 }
@@ -609,14 +611,15 @@ async function loadGrades(courseId){
   wrap.innerHTML = '<div class="spinner"></div>';
   const { attempts } = await api(`/api/courses/${courseId}/attempts`);
   if(!attempts.length){ wrap.innerHTML = '<div class="empty">還沒有學生完成這堂課的測驗。</div>'; return; }
-  wrap.innerHTML = `<table><thead><tr><th>學生</th><th>班級</th><th>分數</th><th>提交時間</th><th></th></tr></thead><tbody>
-  ${attempts.map(a=>`<tr>
-    <td>${esc(a.student_name)}</td><td>${esc(a.class_name||'—')}</td>
+  wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>學生</th><th>班級</th><th>分數</th><th>提交時間</th><th></th></tr></thead><tbody id="gradeAttemptList">
+  ${attempts.map(a=>`<tr data-filter-row data-search="${escAttr(`${a.student_name} ${a.student_account||''} ${a.class_name||''}`)}" data-class="${a.class_id||''}">
+    <td><div class="entity-main"><span class="avatar">${esc(a.student_name?.[0]||'?')}</span><span><b>${esc(a.student_name)}</b><small>${esc(a.student_account||'')}</small></span></div></td><td><span class="soft-tag">${esc(a.class_name||'未分班')}</span></td>
     <td class="mono">${a.score} / ${a.total}</td>
     <td class="mono">${a.submitted_at}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openAttemptModal(${a.id})">查看／修改</button></td>
   </tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table></div>`;
+  applyViewFilters('gradeAttemptList');
 }
 async function openAttemptModal(attemptId){
   const { attempt, answers } = await api(`/api/courses/attempts/${attemptId}`);
@@ -646,68 +649,53 @@ function openCourseEditor(courseId){ state.view='courseEditor'; state.courseId=c
 function backToCourses(){ state.view=null; state.courseId=null; render(); }
 
 async function renderCourseEditor(app, courseId){
-  let course = { title:'', subject:'', youtube_url:'', description:'' };
-  let questions = [];
-  const { classes } = await api('/api/classes');
-  window.__classes = classes;
-  if (courseId){
-    const data = await api(`/api/courses/${courseId}`);
-    course = data.course; questions = data.questions;
-  }
+  if(!courseId){ state.view=null; return render(); }
+  const data = await api(`/api/courses/${courseId}`);
+  const course = data.course;
+  const questions = data.questions;
   app.innerHTML = `
     <div class="page-head">
-      <div><h1>${courseId?'編輯課程':'新增課程'}</h1><div class="sub">設定 YouTube 連結、課程說明與測驗題目</div></div>
-      <button class="btn btn-ghost" onclick="backToCourses()">← 返回課程列表</button>
+      <div><h1>${esc(course.title)}｜題庫</h1><div class="sub">${esc(course.class_name||'全園')} · ${esc(course.subject||'未分類')} · 建立功課題目</div></div>
+      <button class="btn btn-ghost" onclick="backToCourses()">← 返回課程題庫</button>
     </div>
-    <div class="card"><div class="card-body">
-      <div class="field"><label>課程標題</label><input id="c_title" value="${escAttr(course.title)}"></div>
-      <div class="field"><label>班級</label><select id="c_class">${classOptions(course.class_id)}</select></div>
-      <div class="field"><label>科目</label><select id="c_subject">${subjectOptions(course.subject||'')}</select></div>
-      <div class="field"><label>YouTube 影片連結</label><input id="c_youtube" value="${escAttr(course.youtube_url||'')}" placeholder="https://www.youtube.com/watch?v=..."></div>
-      <div class="field"><label>課程說明</label><textarea id="c_desc">${esc(course.description||'')}</textarea></div>
-      <button class="btn btn-primary" onclick="saveCourseInfo(${courseId||'null'})">${courseId?'儲存變更':'建立課程'}</button>
-    </div></div>
-
-    ${courseId ? `
     <div class="card" style="margin-top:18px;">
-      <div class="card-head"><h2>測驗題目</h2>
+      <div class="card-head"><div><h2>功課題目</h2><small>目前 ${questions.length} 題</small></div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost btn-sm" onclick="openQuestionModal('mc', ${courseId})">＋ 選擇題</button>
+          <button class="btn btn-ghost btn-sm" onclick="openQuestionModal('tf', ${courseId})">＋ 是非題</button>
           <button class="btn btn-ghost btn-sm" onclick="openQuestionModal('photo', ${courseId})">＋ 照片題</button>
         </div>
       </div>
       <div class="card-body" id="qList">
         ${questions.length ? questions.map((q,i)=>qItemHTML(q,i)).join('') : '<div class="empty">尚未新增題目</div>'}
       </div>
-    </div>` : `<div class="empty" style="margin-top:16px;">請先儲存課程基本資料，才能新增題目。</div>`}
+    </div>
   `;
 }
 function qItemHTML(q, idx){
+  const kind=q.kind||q.type;
+  const kindLabel=kind==='tf'?'是非題':kind==='photo'?'圖片題':'選擇題';
   return `<div class="qbuilder-item">
-    <div class="qtype">${q.type==='photo'?'照片題':'選擇題'} · 第 ${idx+1} 題
+    <div class="qtype">${kindLabel} · 第 ${idx+1} 題
       <button class="btn btn-ghost btn-sm" style="float:right;padding:3px 10px;" onclick="deleteQuestion(${q.id})">刪除</button>
     </div>
     <div style="font-size:13.5px;font-weight:700;margin:6px 0 8px;">${esc(q.text)}</div>
     ${q.options.map((o,i)=>`<div style="font-size:12.5px;color:${i===q.correct_index?'#2F6E5B':'var(--ink-soft)'};padding:3px 0;">${i===q.correct_index?'✓ ':'　'}${esc(o)}</div>`).join('')}
   </div>`;
 }
-async function saveCourseInfo(courseId){
-  const body = { title: val('c_title'), class_id:Number(val('c_class'))||null, subject: val('c_subject'), youtube_url: val('c_youtube'), description: val('c_desc') };
-  try{
-    if(courseId){ await api(`/api/courses/${courseId}`, { method:'PATCH', body }); toast('課程已更新'); render(); }
-    else{ const { course } = await api('/api/courses', { method:'POST', body }); toast('課程已建立，接著新增題目吧'); openCourseEditor(course.id); }
-  }catch(err){ toast(err.message,'err'); }
-}
 async function deleteQuestion(qId){
   await api(`/api/courses/questions/${qId}`, { method:'DELETE' });
   toast('題目已刪除'); render();
 }
 function openQuestionModal(type, courseId){
-  openModal(type==='photo'?'新增照片題':'新增選擇題', `
+  const title=type==='photo'?'新增圖片題':type==='tf'?'新增是非題':'新增選擇題';
+  openModal(title, `
     <div class="field"><label>題目</label><textarea id="q_text" placeholder="輸入題目內容"></textarea></div>
     ${type==='photo' ? `<div class="field"><label>圖片網址（選填）</label><input id="q_image" placeholder="https://..."></div>` : ''}
     <div class="field"><label>選項與正確答案</label>
-      ${[0,1,2,3].map(i=>`
+      ${type==='tf'
+        ? `<label class="quiz-opt"><input type="radio" name="q_correct" value="0" checked> 是</label><label class="quiz-opt"><input type="radio" name="q_correct" value="1"> 否</label>`
+        : [0,1,2,3].map(i=>`
         <div class="opt-row">
           <input type="radio" name="q_correct" value="${i}" ${i===0?'checked':''}>
           <input type="text" id="q_opt${i}" placeholder="選項 ${String.fromCharCode(65+i)}">
@@ -717,7 +705,7 @@ function openQuestionModal(type, courseId){
   `);
 }
 async function submitQuestion(type, courseId){
-  const options = [0,1,2,3].map(i=>val('q_opt'+i)).filter(o=>o);
+  const options = type==='tf' ? ['是','否'] : [0,1,2,3].map(i=>val('q_opt'+i)).filter(o=>o);
   const correct_index = parseInt(document.querySelector('input[name=q_correct]:checked').value, 10);
   const body = { type, text: val('q_text'), image_url: type==='photo'?val('q_image'):null, options, correct_index };
   try{ await api(`/api/courses/${courseId}/questions`, { method:'POST', body }); toast('題目已新增'); closeModal(); render(); }

@@ -46,8 +46,8 @@ router.get('/', requireAuth, (req, res) => {
     if (req.user.role === 'teacher') {
       rows = db.prepare(`
         SELECT id,name,email,grade,class_id,class_name,guardian_name,guardian_phone,status,created_at FROM users
-        WHERE role='student' AND created_by = ? ORDER BY created_at DESC
-      `).all(req.user.id);
+        WHERE role='student' AND institution_id = ? ORDER BY created_at DESC
+      `).all(req.user.institution_id);
     } else if (req.user.role === 'institution') {
       rows = db.prepare(`
         SELECT id,name,email,grade,class_id,class_name,guardian_name,guardian_phone,status,created_at FROM users
@@ -67,11 +67,11 @@ router.get('/', requireAuth, (req, res) => {
 // body student: { name, email, password, grade, class_id, guardian_name, guardian_phone }
 router.post('/', requireAuth, requireRole('institution', 'teacher'), (req, res) => {
   const { name, email, phone, password, grade, class_id, guardian_name, guardian_phone } = req.body || {};
-  const missingTeacherFields = req.user.role === 'institution' && !phone;
+  const missingTeacherFields = false;
   const missingStudentFields = req.user.role === 'teacher' && (!grade || !class_id || !guardian_name || !guardian_phone);
   if (!name || !email || !password || missingTeacherFields || missingStudentFields) {
     const error = req.user.role === 'institution'
-      ? '請填寫老師姓名、登入帳號、電話與密碼'
+      ? '請填寫老師姓名、登入帳號與密碼'
       : '請填寫學生姓名、登入帳號、年級、班級、家長資料與密碼';
     return res.status(400).json({ error });
   }

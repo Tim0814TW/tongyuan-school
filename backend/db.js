@@ -190,4 +190,11 @@ for (const [column, definition] of Object.entries(courseAccessMigrations)) {
   }
 }
 
+const questionColumns = new Set(
+  db.prepare('PRAGMA table_info(questions)').all().map((column) => column.name)
+);
+if (!questionColumns.has('kind')) {
+  db.exec("ALTER TABLE questions ADD COLUMN kind TEXT DEFAULT ''");
+}
+
 module.exports = db;
