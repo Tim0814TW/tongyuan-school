@@ -72,7 +72,22 @@
   .stamp.jade{ color:#2F6E5B; } .stamp.pink{ color:var(--pink); }
 
   #studentGridWrap{ display:grid; grid-template-columns:1.3fr 1fr; gap:20px; }
+  .view-panel{ background:var(--paper); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); overflow:hidden; }
+  .view-panel-head{ padding:17px 19px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .view-panel-head h2{ font-size:17px; margin:0; }
+  .view-panel-head small{ display:block; color:var(--ink-soft); margin-top:4px; }
+  .view-toolbar{ padding:13px 18px; background:#FCFBF8; border-bottom:1px solid var(--line); display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+  .view-toolbar input,.view-toolbar select{ width:auto; min-width:150px; padding:8px 11px; font-size:12.5px; background:#fff; }
+  .view-toolbar input{ flex:1; min-width:210px; }
+  .view-count{ margin-left:auto; font-size:11.5px; color:var(--ink-soft); font-weight:700; white-space:nowrap; }
+  .table-scroll{ overflow-x:auto; }
+  .entity-main{ display:flex; align-items:center; gap:10px; min-width:150px; }
+  .entity-main b{ display:block; font-size:13.5px; }
+  .entity-main small{ display:block; margin-top:2px; }
+  .soft-tag{ display:inline-flex; padding:4px 9px; border-radius:999px; background:var(--accent-soft); color:var(--purple); font-size:11px; font-weight:700; }
+  tr[data-filter-row][hidden],.course-card[data-filter-row][hidden]{ display:none!important; }
   @media (max-width:900px){ #studentGridWrap{ grid-template-columns:1fr; } }
+  @media (max-width:640px){ .view-toolbar>*{ width:100%!important; } .view-count{ margin-left:0; } }
 </style>
 </head>
 <body>
@@ -121,6 +136,28 @@ function tabsHTML(role, tabs, activeKey){
   return `<div class="tabs">${tabs.map(t=>`<button data-tab="${t.key}" class="${activeKey===t.key?'active':''}" onclick="setTab('${role}','${t.key}')">${t.label}</button>`).join('')}</div>`;
 }
 function setTab(role, key){ state.tab[role]=key; render(); }
+function applyViewFilters(listId){
+  const container=document.getElementById(listId);
+  if(!container) return;
+  const query=(document.getElementById(`${listId}Search`)?.value||'').trim().toLowerCase();
+  const selects=[...document.querySelectorAll(`[data-filter-for="${listId}"]`)];
+  let visible=0;
+  for(const row of container.querySelectorAll('[data-filter-row]')){
+    const matchesText=!query||(row.dataset.search||'').toLowerCase().includes(query);
+    const matchesSelect=selects.every(select=>!select.value||(row.dataset[select.dataset.key]||'')===select.value);
+    row.hidden=!(matchesText&&matchesSelect);
+    if(!row.hidden) visible++;
+  }
+  const count=document.getElementById(`${listId}Count`);
+  if(count) count.textContent=`顯示 ${visible} 筆`;
+}
+function viewToolbar(listId,{placeholder='搜尋名稱或帳號',filters=[]}={}){
+  return `<div class="view-toolbar">
+    <input id="${listId}Search" placeholder="${escAttr(placeholder)}" oninput="applyViewFilters('${listId}')">
+    ${filters.map(filter=>`<select data-filter-for="${listId}" data-key="${filter.key}" onchange="applyViewFilters('${listId}')"><option value="">${esc(filter.label)}：全部</option>${filter.options.map(option=>`<option value="${escAttr(option.value)}">${esc(option.label)}</option>`).join('')}</select>`).join('')}
+    <span class="view-count" id="${listId}Count">顯示全部</span>
+  </div>`;
+}
 
 async function render(){
   const app = document.getElementById('app');
@@ -231,7 +268,7 @@ async function renderInstitution(app){
           : '<button class="btn btn-accent" onclick="openTeacherModal()">＋ 新增老師</button>'}
       </div>
     </div>
-    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'classes',label:'班級管理'},{key:'courses',label:'課程管理'}], tab)}
+    ${tabsHTML('institution',[{key:'overview',label:'總覽'},{key:'teachers',label:'老師管理'},{key:'students',label:'學生總覽'},{key:'classes',label:'班級管理'},{key:'courses',label:'課程管理'}], tab)}
     ${tab==='overview' ? `
       <div class="grid-stats">
         <div class="stat-card"><div class="label">老師數</div><div class="value">${teachers.length}</div></div>
@@ -240,17 +277,30 @@ async function renderInstitution(app){
         <div class="stat-card"><div class="label">課程總數</div><div class="value">${teachers.reduce((s,t)=>s+t.course_count,0)}</div></div>
       </div>` : ''}
     ${tab==='courses'
-      ? `<div class="card"><div class="card-head"><h2>全園課程</h2><span class="badge badge-gray">${courses.length} 門</span></div><div class="card-body">${institutionCourseTable(courses)}</div></div>`
+      ? `<div class="view-panel"><div class="view-panel-head"><div><h2>全園課程</h2><small>依班級、科目快速找到要整理的課程</small></div><span class="badge badge-gray">${courses.length} 門</span></div>${viewToolbar('institutionCourseList',{placeholder:'搜尋課程、老師或科目',filters:[{key:'class',label:'班級',options:classes.map(item=>({value:String(item.id),label:item.name}))},{key:'subject',label:'科目',options:[...new Set(courses.map(item=>item.subject).filter(Boolean))].map(item=>({value:item,label:item}))}]})}<div class="table-scroll">${institutionCourseTable(courses)}</div></div>`
       : tab==='classes'
-        ? `<div class="card"><div class="card-head"><div><h2>班級管理</h2><small>先建立班級，新增學生與課程時就能直接選取。</small></div></div><div class="card-body">${classTable(classes)}</div></div>`
-      : `<div class="card"><div class="card-head"><h2>老師帳號</h2></div><div class="card-body">${teacherTable(teachers)}</div></div>`}
+        ? `<div class="view-panel"><div class="view-panel-head"><div><h2>班級管理</h2><small>先建立班級，新增學生與課程時就能直接選取。</small></div><span class="badge badge-gray">${classes.length} 班</span></div>${viewToolbar('classList',{placeholder:'搜尋班級或年級',filters:[{key:'status',label:'狀態',options:[{value:'active',label:'使用中'},{value:'disabled',label:'已停用'}]}]})}<div class="table-scroll">${classTable(classes)}</div></div>`
+      : tab==='students'
+        ? `<div class="view-panel"><div class="view-panel-head"><div><h2>學生總覽</h2><small>依班級、年級與狀態整理全園學生</small></div><span class="badge badge-gray">${students.length} 位</span></div>${viewToolbar('institutionStudentList',{placeholder:'搜尋學生、帳號或家長',filters:[{key:'class',label:'班級',options:classes.map(item=>({value:String(item.id),label:item.name}))},{key:'status',label:'狀態',options:[{value:'active',label:'正常'},{value:'disabled',label:'已停用'}]}]})}<div class="table-scroll">${institutionStudentTable(students)}</div></div>`
+        : `<div class="view-panel"><div class="view-panel-head"><div><h2>老師帳號</h2><small>查看老師帳號與課程發布狀況</small></div><span class="badge badge-gray">${teachers.length} 位</span></div>${viewToolbar('teacherList',{placeholder:'搜尋老師、帳號或電話',filters:[{key:'status',label:'狀態',options:[{value:'active',label:'正常'},{value:'disabled',label:'已停用'}]}]})}<div class="table-scroll">${teacherTable(teachers)}</div></div>`}
   `;
+}
+function institutionStudentTable(students){
+  if(!students.length) return '<div class="empty">目前尚無學生資料。</div>';
+  return `<table><thead><tr><th>學生</th><th>年級／班級</th><th>家長聯絡</th><th>狀態</th></tr></thead><tbody id="institutionStudentList">
+    ${students.map(student=>`<tr data-filter-row data-search="${escAttr(`${student.name} ${student.email} ${student.guardian_name||''} ${student.guardian_phone||''} ${student.class_name||''}`)}" data-class="${student.class_id||''}" data-status="${student.status}">
+      <td><div class="entity-main"><span class="avatar">${esc(student.name?.[0]||'?')}</span><span><b>${esc(student.name)}</b><small>${esc(student.email)}</small></span></div></td>
+      <td><span class="soft-tag">${esc(student.grade||'未填年級')}</span><br><small>${esc(student.class_name||'未分班')}</small></td>
+      <td>${esc(student.guardian_name||'—')}<br><small>${esc(student.guardian_phone||'—')}</small></td>
+      <td>${student.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
 }
 function classTable(classes){
   if(!classes.length) return '<div class="empty">尚未建立班級，點右上角「新增班級」開始設定。</div>';
-  return `<table><thead><tr><th>班級名稱</th><th>年級</th><th>學生數</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody>
-    ${classes.map(item=>`<tr>
-      <td><b>${esc(item.name)}</b></td><td>${esc(item.grade||'—')}</td>
+  return `<table><thead><tr><th>班級名稱</th><th>年級</th><th>學生數</th><th>課程數</th><th>狀態</th><th></th></tr></thead><tbody id="classList">
+    ${classes.map(item=>`<tr data-filter-row data-search="${escAttr(`${item.name} ${item.grade||''}`)}" data-status="${item.status}">
+      <td><div class="entity-main"><span class="avatar">${esc(item.name?.[0]||'班')}</span><span><b>${esc(item.name)}</b><small>班級資料</small></span></div></td><td><span class="soft-tag">${esc(item.grade||'未設定')}</span></td>
       <td class="mono">${item.student_count}</td><td class="mono">${item.course_count}</td>
       <td>${item.status==='active'?'<span class="badge badge-jade">使用中</span>':'<span class="badge badge-gray">已停用</span>'}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="openClassModal(${item.id})">編輯</button></td>
@@ -291,9 +341,9 @@ function classOptions(selectedId=null){
 function institutionCourseTable(rows){
   if(!rows.length) return '<div class="empty">目前尚未建立課程。老師建立課程後，園所可在這裡統一整理。</div>';
   const grouped = [...rows].sort((a,b)=>(a.teacher_name||'').localeCompare(b.teacher_name||'','zh-Hant') || (a.title||'').localeCompare(b.title||'','zh-Hant'));
-  return `<table><thead><tr><th>課程</th><th>授課老師</th><th>班級／科目</th><th>題目</th><th>最後更新</th><th></th></tr></thead><tbody>
-  ${grouped.map(course=>`<tr>
-    <td><b>${esc(course.title)}</b><br><small>${esc(course.description||'尚未填寫課程說明')}</small></td>
+  return `<table><thead><tr><th>課程</th><th>授課老師</th><th>班級／科目</th><th>題目</th><th>最後更新</th><th></th></tr></thead><tbody id="institutionCourseList">
+  ${grouped.map(course=>`<tr data-filter-row data-search="${escAttr(`${course.title} ${course.teacher_name||''} ${course.subject||''} ${course.class_name||''}`)}" data-class="${course.class_id||''}" data-subject="${escAttr(course.subject||'')}">
+    <td><div class="entity-main"><span class="avatar">課</span><span><b>${esc(course.title)}</b><small>${esc(course.description||'尚未填寫課程說明')}</small></span></div></td>
     <td>${esc(course.teacher_name||'未指定')}<br><small>${esc(course.teacher_email||'')}</small></td>
     <td>${esc(course.class_name||'全園')}<br><small>${esc(course.subject||'未分類')}</small></td>
     <td class="mono">${course.question_count||0} 題</td>
@@ -399,8 +449,8 @@ async function runUserImport(dryRun){
 }
 function teacherTable(rows){
   if(!rows.length) return '<div class="empty">尚未有任何老師帳號，點右上角「新增老師」開始建立。</div>';
-  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>主要工作</th><th>已發布課程</th><th>狀態</th><th></th></tr></thead><tbody>
-  ${rows.map(t=>`<tr>
+  return `<table><thead><tr><th>老師</th><th>聯絡方式／帳號</th><th>主要工作</th><th>已發布課程</th><th>狀態</th><th></th></tr></thead><tbody id="teacherList">
+  ${rows.map(t=>`<tr data-filter-row data-search="${escAttr(`${t.name} ${t.email} ${t.phone||''}`)}" data-status="${t.status}">
     <td style="display:flex;align-items:center;gap:9px;"><span class="avatar">${t.name[0]}</span>${esc(t.name)}</td>
     <td>${esc(t.phone||'—')}<br><small>${esc(t.email)}</small></td>
     <td>追蹤作業進度<br><small>發布課程與功課</small></td>
@@ -459,8 +509,11 @@ async function renderTeacher(app){
 async function teacherCoursesHTML(){
   const { courses } = await api('/api/courses');
   if(!courses.length) return '<div class="empty">還沒有課程，點右上角「新增課程」開始建立第一堂課。</div>';
-  return `<div class="course-grid">${courses.map(c=>`
-    <div class="course-card">
+  const classFilters=[...new Map(courses.filter(item=>item.class_id).map(item=>[item.class_id,{value:String(item.class_id),label:item.class_name}])).values()];
+  return `<div class="view-panel"><div class="view-panel-head"><div><h2>園所課程</h2><small>自己的課程可編輯，同園課程可查看</small></div><span class="badge badge-gray">${courses.length} 門</span></div>
+    ${viewToolbar('teacherCourseList',{placeholder:'搜尋課程、老師或科目',filters:[{key:'class',label:'班級',options:classFilters},{key:'owner',label:'分類',options:[{value:'mine',label:'我的課程'},{value:'shared',label:'同園課程'}]}]})}
+    <div class="course-grid" id="teacherCourseList" style="padding:18px;">${courses.map(c=>`
+    <div class="course-card" data-filter-row data-search="${escAttr(`${c.title} ${c.teacher_name||''} ${c.subject||''} ${c.class_name||''}`)}" data-class="${c.class_id||''}" data-owner="${c.can_edit?'mine':'shared'}">
       <div class="course-thumb" style="background:linear-gradient(135deg,#846CA8,#48C0F0);">
         <span class="tag">${esc(c.subject||'課程')}</span>
         <div class="play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#545454"><path d="M8 5v14l11-7z"/></svg></div>
@@ -472,7 +525,7 @@ async function teacherCoursesHTML(){
           ? `<button class="btn btn-ghost btn-sm" style="align-self:flex-start;" onclick="openCourseEditor(${c.id})">編輯我的課程</button>`
           : `<button class="btn btn-ghost btn-sm" style="align-self:flex-start;" onclick="openTeacherCourseView(${c.id})">查看園所課程</button>`}
       </div>
-    </div>`).join('')}</div>`;
+    </div>`).join('')}</div></div>`;
 }
 function openTeacherCourseView(courseId){ state.view='courseView'; state.courseId=courseId; render(); }
 async function renderTeacherCourseView(app, courseId){
@@ -493,15 +546,17 @@ async function teacherStudentsHTML(){
   window.__students = students;
   window.__classes = classes;
   if(!students.length) return '<div class="empty">還沒有學生帳號，點右上角「新增學生」開始建立。</div>';
-  return `<table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody>
-  ${students.map(s=>`<tr>
-    <td><div style="display:flex;align-items:center;gap:9px;"><span class="avatar">${s.name[0]}</span>${esc(s.name)}</div><small>${esc(s.email)}</small></td>
+  return `<div class="view-panel"><div class="view-panel-head"><div><h2>學生與作業追蹤</h2><small>依班級快速找到孩子並查看資料</small></div><span class="badge badge-gray">${students.length} 位</span></div>
+  ${viewToolbar('teacherStudentList',{placeholder:'搜尋學生、帳號或家長',filters:[{key:'class',label:'班級',options:classes.map(item=>({value:String(item.id),label:item.name}))},{key:'status',label:'狀態',options:[{value:'active',label:'正常'},{value:'disabled',label:'已停用'}]}]})}
+  <div class="table-scroll"><table><thead><tr><th>學生／帳號</th><th>年級／班級</th><th>家長聯絡資料</th><th>狀態</th><th></th></tr></thead><tbody id="teacherStudentList">
+  ${students.map(s=>`<tr data-filter-row data-search="${escAttr(`${s.name} ${s.email} ${s.guardian_name||''} ${s.guardian_phone||''} ${s.class_name||''}`)}" data-class="${s.class_id||''}" data-status="${s.status}">
+    <td><div class="entity-main"><span class="avatar">${esc(s.name?.[0]||'?')}</span><span><b>${esc(s.name)}</b><small>${esc(s.email)}</small></span></div></td>
     <td>${esc(s.grade||'—')}<br><small>${esc(s.class_name||'—')}</small></td>
     <td>${esc(s.guardian_name||'—')}<br><small>${esc(s.guardian_phone||'—')}</small></td>
     <td>${s.status==='active'?'<span class="badge badge-jade">正常</span>':'<span class="badge badge-gray">已停用</span>'}</td>
     <td><button class="btn btn-ghost btn-sm" onclick="openStudentModal(${s.id})">編輯</button></td>
   </tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table></div></div>`;
 }
 function openStudentModal(studentId=null){
   const student = studentId ? (window.__students||[]).find(s=>s.id===studentId) : null;
