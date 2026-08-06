@@ -77,7 +77,7 @@ router.post('/', requireAuth, requireRole('super'), (req, res) => {
   res.status(201).json({ institution });
 });
 
-// PATCH /api/institutions/:id — 停用/啟用、修改方案
+// PATCH /api/institutions/:id — 編輯園所資料、停用／啟用
 router.patch('/:id', requireAuth, requireRole('super'), (req, res) => {
   const {
     status, plan, name, address, contactPhone, directorName, directorPhone,
@@ -85,20 +85,32 @@ router.patch('/:id', requireAuth, requireRole('super'), (req, res) => {
   } = req.body || {};
   const inst = db.prepare('SELECT * FROM institutions WHERE id = ?').get(req.params.id);
   if (!inst) return res.status(404).json({ error: '找不到園所' });
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name') && !String(name || '').trim()) {
+    return res.status(400).json({ error: '園所名稱不可空白' });
+  }
+
+  const valueOrExisting = (key, value, existing) => (
+    Object.prototype.hasOwnProperty.call(req.body || {}, key) ? String(value ?? '').trim() : existing
+  );
 
   db.prepare(`
     UPDATE institutions SET
-      status = COALESCE(?, status), plan = COALESCE(?, plan), name = COALESCE(?, name),
-      address = COALESCE(?, address), contact_phone = COALESCE(?, contact_phone),
-      director_name = COALESCE(?, director_name), director_phone = COALESCE(?, director_phone),
-      director_email = COALESCE(?, director_email),
-      authorization_year = COALESCE(?, authorization_year),
-      authorization_period = COALESCE(?, authorization_period)
+      status = ?, plan = ?, name = ?, address = ?, contact_phone = ?,
+      director_name = ?, director_phone = ?, director_email = ?,
+      authorization_year = ?, authorization_period = ?
     WHERE id = ?
   `).run(
-    status || null, plan || null, name || null, address || null, contactPhone || null,
-    directorName || null, directorPhone || null, directorEmail || null,
-    authorizationYear ?? null, authorizationPeriod ?? null, req.params.id
+    status || inst.status,
+    valueOrExisting('plan', plan, inst.plan),
+    valueOrExisting('name', name, inst.name),
+    valueOrExisting('address', address, inst.address),
+    valueOrExisting('contactPhone', contactPhone, inst.contact_phone),
+    valueOrExisting('directorName', directorName, inst.director_name),
+    valueOrExisting('directorPhone', directorPhone, inst.director_phone),
+    valueOrExisting('directorEmail', directorEmail, inst.director_email),
+    valueOrExisting('authorizationYear', authorizationYear, inst.authorization_year),
+    valueOrExisting('authorizationPeriod', authorizationPeriod, inst.authorization_period),
+    req.params.id
   );
 
   res.json({ institution: db.prepare('SELECT * FROM institutions WHERE id = ?').get(req.params.id) });

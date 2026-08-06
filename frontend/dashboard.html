@@ -185,6 +185,7 @@ async function render(){
 async function renderSuper(app){
   const tab = state.tab.super || 'overview';
   const { institutions } = await api('/api/institutions');
+  window.__superInstitutions = institutions;
 
   const totalTeachers = institutions.reduce((s,i)=>s+i.teacher_count,0);
   const totalStudents = institutions.reduce((s,i)=>s+i.student_count,0);
@@ -214,7 +215,7 @@ function instTable(rows){
     <td>${esc(i.authorization_year||'未設定')}<br><small>${esc(i.authorization_period||'尚未填寫期限')}</small></td>
     <td class="mono">老師 ${i.teacher_count}<br>學生 ${i.student_count}</td>
     <td>${i.status==='active'?'<span class="badge badge-jade">啟用中</span>':'<span class="badge badge-gray">已停用</span>'}</td>
-    <td><button class="btn btn-ghost btn-sm" onclick="toggleInst(${i.id}, '${i.status==='active'?'disabled':'active'}')">${i.status==='active'?'停用':'啟用'}</button></td>
+    <td><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-accent btn-sm" onclick="openInstModal(${i.id})">編輯資料</button><button class="btn btn-ghost btn-sm" onclick="toggleInst(${i.id}, '${i.status==='active'?'disabled':'active'}')">${i.status==='active'?'停用':'啟用'}</button></div></td>
   </tr>`).join('')}
   </tbody></table>`;
 }
@@ -222,36 +223,45 @@ async function toggleInst(id, status){
   await api(`/api/institutions/${id}`, { method:'PATCH', body:{ status } });
   toast('狀態已更新'); render();
 }
-function openInstModal(){
-  openModal('新增園所', `
-    <div class="field"><label>園所名稱</label><input id="f_name" placeholder="例如 博智文理補習班"></div>
-    <div class="field"><label>園所地址</label><input id="f_address" placeholder="完整地址"></div>
-    <div class="field"><label>園所聯絡電話</label><input id="f_contactPhone" type="tel" placeholder="02-2345-6789"></div>
+function openInstModal(institutionId=null){
+  const institution = institutionId ? (window.__superInstitutions||[]).find(item=>item.id===institutionId) : null;
+  if(institutionId && !institution) return toast('找不到園所資料','err');
+  openModal(institution?'編輯園所資料':'新增園所', `
+    <input id="f_institutionId" type="hidden" value="${institution?.id||''}">
+    ${institution?`<div style="background:var(--accent-soft);padding:11px 13px;border-radius:10px;margin-bottom:14px;font-size:12.5px;">園所代碼：<b class="mono">${esc(institution.code)}</b></div>`:''}
+    <div class="field"><label>園所名稱</label><input id="f_name" value="${escAttr(institution?.name||'')}" placeholder="例如 博智文理補習班"></div>
+    <div class="field"><label>園所地址</label><input id="f_address" value="${escAttr(institution?.address||'')}" placeholder="完整地址"></div>
+    <div class="field"><label>園所聯絡電話</label><input id="f_contactPhone" type="tel" value="${escAttr(institution?.contact_phone||'')}" placeholder="02-2345-6789"></div>
     <div class="field"><label>方案</label>
-      <select id="f_plan"><option>標準方案</option><option>旗艦方案</option></select>
+      <select id="f_plan"><option ${institution?.plan==='標準方案'?'selected':''}>標準方案</option><option ${institution?.plan==='旗艦方案'?'selected':''}>旗艦方案</option></select>
     </div>
-    <div class="field"><label>主任姓名</label><input id="f_directorName" placeholder="王主任"></div>
-    <div class="field"><label>主任電話</label><input id="f_directorPhone" type="tel" placeholder="0912-345-678"></div>
-    <div class="field"><label>主任 Email</label><input id="f_directorEmail" type="email" placeholder="director@example.com"></div>
-    <div class="field"><label>授權年份</label><input id="f_authorizationYear" placeholder="例如 2026"></div>
-    <div class="field"><label>授權期限／時間</label><input id="f_authorizationPeriod" placeholder="例如 2026/07/01 - 2027/06/30"></div>
-    <div class="field"><label>管理員姓名</label><input id="f_ownerName" placeholder="園所管理員姓名"></div>
-    <div class="field"><label>管理員登入帳號</label><input id="f_ownerEmail" type="text" placeholder="請設定登入帳號" autocomplete="username"></div>
-    <div class="field"><label>管理員初始密碼</label><input id="f_ownerPassword" type="password" minlength="8" placeholder="至少 8 個字元"></div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstModal()">建立園所</button>
+    <div class="field"><label>主任姓名</label><input id="f_directorName" value="${escAttr(institution?.director_name||'')}" placeholder="王主任"></div>
+    <div class="field"><label>主任電話</label><input id="f_directorPhone" type="tel" value="${escAttr(institution?.director_phone||'')}" placeholder="0912-345-678"></div>
+    <div class="field"><label>主任 Email</label><input id="f_directorEmail" type="email" value="${escAttr(institution?.director_email||'')}" placeholder="director@example.com"></div>
+    <div class="field"><label>授權年份</label><input id="f_authorizationYear" value="${escAttr(institution?.authorization_year||'')}" placeholder="例如 2026"></div>
+    <div class="field"><label>授權期限／時間</label><input id="f_authorizationPeriod" value="${escAttr(institution?.authorization_period||'')}" placeholder="例如 2026/07/01 - 2027/06/30"></div>
+    ${institution?'':`
+      <div class="field"><label>管理員姓名</label><input id="f_ownerName" placeholder="園所管理員姓名"></div>
+      <div class="field"><label>管理員登入帳號</label><input id="f_ownerEmail" type="text" placeholder="請設定登入帳號" autocomplete="username"></div>
+      <div class="field"><label>管理員初始密碼</label><input id="f_ownerPassword" type="password" minlength="8" placeholder="至少 8 個字元"></div>`}
+    <button class="btn btn-accent" style="width:100%;justify-content:center;" onclick="submitInstModal()">${institution?'儲存園所資料':'建立園所'}</button>
   `);
 }
 async function submitInstModal(){
+  const institutionId = val('f_institutionId');
   const body = {
     name: val('f_name'), plan: val('f_plan'),
     address: val('f_address'), contactPhone: val('f_contactPhone'),
     directorName: val('f_directorName'), directorPhone: val('f_directorPhone'), directorEmail: val('f_directorEmail'),
     authorizationYear: val('f_authorizationYear'), authorizationPeriod: val('f_authorizationPeriod'),
-    ownerName: val('f_ownerName'), ownerEmail: val('f_ownerEmail'), ownerPassword: val('f_ownerPassword'),
   };
+  if(!institutionId) Object.assign(body, {
+    ownerName: val('f_ownerName'), ownerEmail: val('f_ownerEmail'), ownerPassword: val('f_ownerPassword'),
+  });
+  if(!body.name) return toast('請輸入園所名稱','err');
   try{
-    await api('/api/institutions', { method:'POST', body });
-    toast('園所建立成功'); closeModal(); render();
+    await api(institutionId?`/api/institutions/${institutionId}`:'/api/institutions', { method:institutionId?'PATCH':'POST', body });
+    toast(institutionId?'園所資料已更新':'園所建立成功'); closeModal(); render();
   }catch(err){ toast(err.message, 'err'); }
 }
 
